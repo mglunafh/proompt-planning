@@ -1,4 +1,4 @@
-package com.planning.dto
+package org.burufi.proompt.planning.dto
 
 data class PlanResponse(
     val saved: Boolean,

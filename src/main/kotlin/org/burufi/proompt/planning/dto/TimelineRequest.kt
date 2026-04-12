@@ -1,6 +1,6 @@
-package com.planning.dto
+package org.burufi.proompt.planning.dto
 
-import com.planning.model.Snapshot
+import org.burufi.proompt.planning.model.Snapshot
 import java.time.LocalDate
 
 data class TimelineRequest(

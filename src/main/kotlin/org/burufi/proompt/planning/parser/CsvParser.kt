@@ -1,12 +1,12 @@
-package com.planning.parser
+package org.burufi.proompt.planning.parser
 
-import com.planning.dto.ImportCsvResponse
-import com.planning.model.Allocation
-import com.planning.model.Resource
-import com.planning.model.Role
-import com.planning.model.Task
-import com.planning.model.TaskType
 import org.apache.commons.csv.CSVFormat
+import org.burufi.proompt.planning.dto.ImportCsvResponse
+import org.burufi.proompt.planning.model.Allocation
+import org.burufi.proompt.planning.model.Resource
+import org.burufi.proompt.planning.model.Role
+import org.burufi.proompt.planning.model.Task
+import org.burufi.proompt.planning.model.TaskType
 import org.springframework.stereotype.Component
 import java.io.InputStream
 import java.io.InputStreamReader

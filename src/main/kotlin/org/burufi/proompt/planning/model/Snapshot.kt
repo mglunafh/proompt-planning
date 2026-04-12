@@ -1,4 +1,4 @@
-package com.planning.model
+package org.burufi.proompt.planning.model
 
 import java.time.Instant
 

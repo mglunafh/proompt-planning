@@ -1,4 +1,4 @@
-package com.planning.parser
+package org.burufi.proompt.planning.parser
 
 object ColumnMapper {
 

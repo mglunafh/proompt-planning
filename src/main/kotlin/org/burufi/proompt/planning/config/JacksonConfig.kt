@@ -1,4 +1,4 @@
-package com.planning.config
+package org.burufi.proompt.planning.config
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper

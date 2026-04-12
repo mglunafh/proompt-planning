@@ -1,4 +1,4 @@
-package com.planning
+package org.burufi.proompt.planning
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

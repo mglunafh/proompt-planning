@@ -1,4 +1,4 @@
-package com.planning.model
+package org.burufi.proompt.planning.model
 
 data class Resource(
     val id: String,

@@ -1,4 +1,4 @@
-package com.planning.dto
+package org.burufi.proompt.planning.dto
 
 data class ErrorResponse(
     val error: String,
