@@ -59,7 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function openResourceSidebar(resourceId, state) {
     const resource = state.resources.find(r => r.id === resourceId);
     if (!resource) return;
-    const allocations = state.allocations.filter(a => a.resourceId === resource.id);
+    const allocations = state.allocations.filter(a => a.resourceId === resource.id)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const tasks       = allocations.map(a => state.tasks.find(t => t.id === a.taskId)).filter(Boolean);
     SidePanel.openResource({ resource, tasks, allocations });
   }
@@ -204,7 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
       applyResourceHighlight(null);
     }
 
-    const allocations = state.allocations.filter(a => a.taskId === task.id);
+    const allocations = state.allocations.filter(a => a.taskId === task.id)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const resources   = allocations.map(a => state.resources.find(r => r.id === a.resourceId)).filter(Boolean);
     SidePanel.openTask({ task, resources, allocations });
   });

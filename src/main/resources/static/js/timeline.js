@@ -3,7 +3,7 @@
 const Timeline = (() => {
   const COL_WIDTH = { day: 40, week: 200 };
   const ROW_HEIGHT = 48;
-  const LEFT_COL_WIDTH = 200;
+  const LEFT_COL_WIDTH = 240;
 
   const headerEl = document.getElementById('timeline-header');
   const bodyEl = document.getElementById('timeline-body');
@@ -259,7 +259,7 @@ const Timeline = (() => {
       const content = document.createElement('div');
       content.className = 'row-content';
       content.style.width = contentWidth(range, state.zoom) + 'px';
-      if (state.zoom === 'day') { addWeekendStripes(content, range); addHolidayStripes(content, range, holidaySet); }
+      if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
       else addWeekBorders(content, range);
 
       // Vacation blocks
@@ -432,14 +432,18 @@ const Timeline = (() => {
     label.style.cursor   = 'pointer';
 
     const text = document.createElement('span');
-    text.className   = 'row-label-text';
-    text.textContent = task.title;
+    text.className = 'row-label-text';
+    const idChip = document.createElement('span');
+    idChip.className = 'row-label-id';
+    idChip.textContent = task.id;
+    text.appendChild(idChip);
+    text.appendChild(document.createTextNode(task.title));
     label.appendChild(text);
 
     const content = document.createElement('div');
     content.className  = 'row-content';
     content.style.width = contentWidth(range, state.zoom) + 'px';
-    if (state.zoom === 'day') { addWeekendStripes(content, range); addHolidayStripes(content, range, holidaySet); }
+    if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
     else                      addWeekBorders(content, range);
 
     const allocs = state.allocations.filter(a => a.taskId === task.id);
@@ -471,7 +475,7 @@ const Timeline = (() => {
 
     const title = document.createElement('span');
     title.className = 'block-title';
-    title.textContent = resource ? resource.name : task.title;
+    title.textContent = resource ? resource.name : task.id;
 
     const handleRight = document.createElement('div');
     handleRight.className = 'resize-handle resize-handle--right';
@@ -556,9 +560,10 @@ const Timeline = (() => {
     );
   }
 
-  function addWeekendStripes(content, range) {
+  function addWeekendStripes(content, range, holidaySet) {
     forEachDay(range.start, range.end, (d) => {
       if (d.getDay() !== 0 && d.getDay() !== 6) return;
+      if (isHoliday(d, holidaySet)) return;
       const stripe = document.createElement('div');
       stripe.className = 'weekend-stripe';
       stripe.style.left = dateToX(d, range.start, 'day') + 'px';

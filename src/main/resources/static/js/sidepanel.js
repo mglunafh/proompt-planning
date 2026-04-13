@@ -79,7 +79,8 @@ const SidePanel = (() => {
     openMode       = 'resource';
     openResourceId = resource.id;
     openTaskId     = null;
-    const vacations = State.get().vacations.filter(v => v.resourceId === resource.id);
+    const vacations = State.get().vacations.filter(v => v.resourceId === resource.id)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     content.innerHTML = buildResourceContent(resource, tasks, allocations, vacations);
     panel.classList.remove('hidden');
   }
@@ -93,7 +94,8 @@ const SidePanel = (() => {
   function refreshTaskFromState(state, taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
-    const allocations = state.allocations.filter(a => a.taskId === taskId);
+    const allocations = state.allocations.filter(a => a.taskId === taskId)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const resources   = allocations.map(a => state.resources.find(r => r.id === a.resourceId)).filter(Boolean);
     content.innerHTML = buildTaskContent(task, resources, allocations);
   }
@@ -101,9 +103,11 @@ const SidePanel = (() => {
   function refreshResourceFromState(state, resourceId) {
     const resource  = state.resources.find(r => r.id === resourceId);
     if (!resource) return;
-    const allocations = state.allocations.filter(a => a.resourceId === resourceId);
+    const allocations = state.allocations.filter(a => a.resourceId === resourceId)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const tasks       = allocations.map(a => state.tasks.find(t => t.id === a.taskId)).filter(Boolean);
-    const vacations   = state.vacations.filter(v => v.resourceId === resourceId);
+    const vacations   = state.vacations.filter(v => v.resourceId === resourceId)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     content.innerHTML = buildResourceContent(resource, tasks, allocations, vacations);
   }
 

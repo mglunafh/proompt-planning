@@ -26,6 +26,7 @@ const Tooltip = (() => {
 
   function buildResourceView(task, alloc) {
     return `
+      <span style="color:#94a3b8;font-size:11px">${escHtml(task.id)}</span><br>
       <strong>${escHtml(task.title)}</strong><br>
       ${task.project ? `Project: ${escHtml(task.project)}<br>` : ''}
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
@@ -40,6 +41,7 @@ const Tooltip = (() => {
     const dot = `<span class="${dotClass}" style="width:8px;height:8px;margin-right:5px;vertical-align:middle"></span>`;
     const name = resource ? escHtml(resource.name) : '—';
     return `
+      <span style="color:#94a3b8;font-size:11px">${escHtml(task.id)}</span><br>
       <strong>${escHtml(task.title)}</strong><br>
       ${dot}${name}<br>
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
