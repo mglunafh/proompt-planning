@@ -11,13 +11,16 @@ import org.springframework.stereotype.Component
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.util.Locale
 
 @Component
 class CsvParser {
 
-    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    private val dateFormatter    = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    private val altDateFormatter = DateTimeFormatter.ofPattern("dd/MMM/yy HH:mm", Locale.ENGLISH)
 
     fun parse(inputStream: InputStream): ImportCsvResponse {
         val warnings = mutableListOf<String>()
@@ -109,8 +112,12 @@ class CsvParser {
         return try {
             LocalDate.parse(raw, dateFormatter)
         } catch (_: DateTimeParseException) {
-            warnings += "Row $row: cannot parse $field '$raw' (expected yyyy-MM-dd), skipping"
-            null
+            try {
+                LocalDateTime.parse(raw, altDateFormatter).toLocalDate()
+            } catch (_: DateTimeParseException) {
+                warnings += "Row $row: cannot parse $field '$raw' (expected yyyy-MM-dd or dd/MMM/yy HH:mm), skipping"
+                null
+            }
         }
     }
 

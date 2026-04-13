@@ -1,5 +1,6 @@
 package org.burufi.proompt.planning.config
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -16,6 +17,7 @@ class JacksonConfig {
     fun objectMapper(builder: Jackson2ObjectMapperBuilder): ObjectMapper =
         builder
             .modules(JavaTimeModule(), kotlinModule())
+            .serializationInclusion(JsonInclude.Include.NON_NULL)
             .featuresToDisable(
                 SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
                 DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,

@@ -7,4 +7,5 @@ data class Allocation(
     val resourceId: String,
     val startDate: LocalDate,
     val endDate: LocalDate,
+    val comment: String? = null,
 )

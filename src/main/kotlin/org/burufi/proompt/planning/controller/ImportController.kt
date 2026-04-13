@@ -4,6 +4,7 @@ import org.burufi.proompt.planning.dto.ImportCsvResponse
 import org.burufi.proompt.planning.model.Snapshot
 import org.burufi.proompt.planning.service.CsvImportService
 import org.burufi.proompt.planning.service.JsonImportService
+import org.burufi.proompt.planning.service.PlanStateHolder
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -12,19 +13,34 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import java.time.Instant
 
 @RestController
 @RequestMapping("/api/import")
 class ImportController(
     private val csvImportService: CsvImportService,
     private val jsonImportService: JsonImportService,
+    private val planStateHolder: PlanStateHolder,
 ) {
 
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
-    fun importCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> =
-        ResponseEntity.ok(csvImportService.import(file))
+    fun importCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
+        val response = csvImportService.import(file)
+        val snapshot = Snapshot(
+            version = "1.0",
+            generatedAt = Instant.now(),
+            tasks = response.tasks,
+            resources = response.resources,
+            allocations = response.allocations,
+        )
+        planStateHolder.update(snapshot, file.originalFilename ?: "import.csv")
+        return ResponseEntity.ok(response)
+    }
 
     @PostMapping("/json", consumes = [MediaType.APPLICATION_JSON_VALUE])
-    fun importJson(@RequestBody snapshot: Snapshot): ResponseEntity<Snapshot> =
-        ResponseEntity.ok(jsonImportService.import(snapshot))
+    fun importJson(@RequestBody snapshot: Snapshot): ResponseEntity<Snapshot> {
+        val result = jsonImportService.import(snapshot)
+        planStateHolder.update(result, "snapshot.json")
+        return ResponseEntity.ok(result)
+    }
 }
