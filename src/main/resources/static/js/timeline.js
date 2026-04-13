@@ -59,7 +59,7 @@ const Timeline = (() => {
 
   // ── Public entry point ──────────────────
   function render(state) {
-    if (!state.allocations.length && !state.tasks.length) {
+    if (!state.allocations.length) {
       renderEmpty();
       return;
     }
@@ -68,9 +68,10 @@ const Timeline = (() => {
       // Snap range.start to Monday so header columns and body positions share the same origin
       range.start.setDate(range.start.getDate() - ((range.start.getDay() + 6) % 7));
     }
+    const holidaySet = new Set(state.holidays);
     bodyEl.dataset.rangeStart = range.start.toISOString().slice(0, 10);
-    renderHeader(state, range);
-    renderBody(state, range);
+    renderHeader(state, range, holidaySet);
+    renderBody(state, range, holidaySet);
     DragDrop.attach();
   }
 
@@ -86,7 +87,7 @@ const Timeline = (() => {
   }
 
   // ── Header ──────────────────────────────
-  function renderHeader(state, { start, end }) {
+  function renderHeader(state, { start, end }, holidaySet) {
     const frag = document.createDocumentFragment();
     const zoom = state.zoom;
     const totalWidth = contentWidth({ start, end }, zoom);
@@ -131,7 +132,7 @@ const Timeline = (() => {
       forEachDay(start, end, (d) => {
         const col = document.createElement('div');
         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-        col.className = 'date-col' + (sameDay(d, today) ? ' today' : isWeekend ? ' weekend' : '');
+        col.className = 'date-col' + (sameDay(d, today) ? ' today' : isHoliday(d, holidaySet) ? ' holiday' : isWeekend ? ' weekend' : '');
         col.style.width = COL_WIDTH.day + 'px';
         col.textContent = formatDay(d);
         dayRow.appendChild(col);
@@ -151,13 +152,13 @@ const Timeline = (() => {
   }
 
   // ── Body ────────────────────────────────
-  function renderBody(state, range) {
+  function renderBody(state, range, holidaySet) {
     const frag = document.createDocumentFragment();
 
     if (state.viewMode === 'resource') {
-      renderResourceView(frag, state, range);
+      renderResourceView(frag, state, range, holidaySet);
     } else {
-      renderTaskView(frag, state, range);
+      renderTaskView(frag, state, range, holidaySet);
     }
 
     bodyEl.replaceChildren(frag);
@@ -170,7 +171,7 @@ const Timeline = (() => {
     });
   }
 
-  function renderResourceView(frag, state, range) {
+  function renderResourceView(frag, state, range, holidaySet) {
     const allocIndexMap = new Map(state.allocations.map((a, i) => [a, i]));
     const taskById      = new Map(state.tasks.map(t => [t.id, t]));
 
@@ -258,7 +259,7 @@ const Timeline = (() => {
       const content = document.createElement('div');
       content.className = 'row-content';
       content.style.width = contentWidth(range, state.zoom) + 'px';
-      if (state.zoom === 'day') addWeekendStripes(content, range);
+      if (state.zoom === 'day') { addWeekendStripes(content, range); addHolidayStripes(content, range, holidaySet); }
       else addWeekBorders(content, range);
 
       // Vacation blocks
@@ -357,7 +358,7 @@ const Timeline = (() => {
   // ── Task view ───────────────────────────
   const collapsedFeatures = new Set();
 
-  function renderTaskView(frag, state, range) {
+  function renderTaskView(frag, state, range, holidaySet) {
     const allocIndexMap = new Map(state.allocations.map((a, i) => [a, i]));
     const resourceById  = new Map(state.resources.map(r => [r.id, r]));
     const byProject = groupByProject(state.tasks);
@@ -389,7 +390,7 @@ const Timeline = (() => {
         const children    = childrenOf.get(parent.id) ?? [];
         const isCollapsed = collapsedFeatures.has(parent.id);
 
-        const row   = buildTaskRow(parent, state, range, false, allocIndexMap, resourceById);
+        const row   = buildTaskRow(parent, state, range, false, allocIndexMap, resourceById, holidaySet);
         const label = row.querySelector('.row-label');
 
         if (children.length > 0) {
@@ -409,19 +410,19 @@ const Timeline = (() => {
 
         if (!isCollapsed) {
           for (const child of children) {
-            frag.appendChild(buildTaskRow(child, state, range, true, allocIndexMap, resourceById));
+            frag.appendChild(buildTaskRow(child, state, range, true, allocIndexMap, resourceById, holidaySet));
           }
         }
       }
 
       // Render orphan stories (no parent or parent not in this project)
       for (const story of orphans) {
-        frag.appendChild(buildTaskRow(story, state, range, false, allocIndexMap, resourceById));
+        frag.appendChild(buildTaskRow(story, state, range, false, allocIndexMap, resourceById, holidaySet));
       }
     }
   }
 
-  function buildTaskRow(task, state, range, isChild, allocIndexMap, resourceById) {
+  function buildTaskRow(task, state, range, isChild, allocIndexMap, resourceById, holidaySet) {
     const row   = createRow();
     row.dataset.taskId = task.id;
     const label = createLabel();
@@ -438,7 +439,7 @@ const Timeline = (() => {
     const content = document.createElement('div');
     content.className  = 'row-content';
     content.style.width = contentWidth(range, state.zoom) + 'px';
-    if (state.zoom === 'day') addWeekendStripes(content, range);
+    if (state.zoom === 'day') { addWeekendStripes(content, range); addHolidayStripes(content, range, holidaySet); }
     else                      addWeekBorders(content, range);
 
     const allocs = state.allocations.filter(a => a.taskId === task.id);
@@ -566,6 +567,17 @@ const Timeline = (() => {
     });
   }
 
+  function addHolidayStripes(content, range, holidaySet) {
+    forEachDay(range.start, range.end, (d) => {
+      if (!isHoliday(d, holidaySet)) return;
+      const stripe = document.createElement('div');
+      stripe.className = 'holiday-stripe';
+      stripe.style.left = dateToX(d, range.start, 'day') + 'px';
+      stripe.style.width = COL_WIDTH.day + 'px';
+      content.appendChild(stripe);
+    });
+  }
+
   function addWeekBorders(content, range) {
     forEachWeek(range.start, range.end, (weekStart) => {
       const line = document.createElement('div');
@@ -585,6 +597,13 @@ const Timeline = (() => {
   function daysBetween(a, b) {
     const msPerDay = 86400000;
     return Math.round((b - a) / msPerDay);
+  }
+
+  function isHoliday(d, holidaySet) {
+    const iso = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+    return holidaySet.has(iso);
   }
 
   function sameDay(a, b) {

@@ -60,5 +60,13 @@ const API = (() => {
     });
   }
 
-  return { importCsv, importJson, getTimeline, savePlan, validate, exportSnapshot };
+  let _holidaysPromise = null;
+  async function getHolidays() {
+    if (!_holidaysPromise) {
+      _holidaysPromise = request('/api/holidays', { method: 'GET' });
+    }
+    return _holidaysPromise;
+  }
+
+  return { importCsv, importJson, getTimeline, savePlan, validate, exportSnapshot, getHolidays };
 })();

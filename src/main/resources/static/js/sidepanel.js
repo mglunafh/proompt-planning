@@ -393,6 +393,7 @@ const SidePanel = (() => {
           <span class="alloc-date-sep">→</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${endDate}">
         </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="comment" placeholder="Comment (optional)">
         <div class="alloc-form-actions">
           <button class="btn-alloc-confirm" data-action="alloc-confirm">Add</button>
           <button class="btn-alloc-cancel" data-action="alloc-cancel">Cancel</button>
@@ -433,10 +434,11 @@ const SidePanel = (() => {
     const endDate       = content.querySelector('[data-field="end"]')?.value;
     if (!selectedValue || !startDate || !endDate) return;
 
+    const comment = content.querySelector('[data-field="comment"]')?.value.trim() || undefined;
     const state = State.get();
     const newAlloc = openMode === 'task'
-      ? { taskId: openTaskId,     resourceId: selectedValue, startDate, endDate }
-      : { taskId: selectedValue,  resourceId: openResourceId, startDate, endDate };
+      ? { taskId: openTaskId,    resourceId: selectedValue, startDate, endDate, ...(comment ? { comment } : {}) }
+      : { taskId: selectedValue, resourceId: openResourceId, startDate, endDate, ...(comment ? { comment } : {}) };
 
     const newAllocations = [...state.allocations, newAlloc];
     State.set({ allocations: newAllocations });

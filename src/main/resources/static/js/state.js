@@ -6,6 +6,7 @@ const State = (() => {
     resources: [],
     allocations: [],
     vacations: [],
+    holidays: [],
     viewMode: 'resource',
     zoom: 'day',
   };

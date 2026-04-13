@@ -3,6 +3,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   const timelineBody = document.getElementById('timeline-body');
 
+  // ── Holidays ──────────────────────────────
+  API.getHolidays()
+    .then(holidays => State.set({ holidays }))
+    .catch(() => { /* holidays unavailable — render without highlights */ });
+
   // ── Selection state ───────────────────────
   let selectedTaskId     = null; // resource view — allocation selection
   let selectedResourceId = null; // task view — allocation selection

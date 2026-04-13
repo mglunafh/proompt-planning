@@ -28,18 +28,21 @@ const Tooltip = (() => {
     return `
       <strong>${escHtml(task.title)}</strong><br>
       ${task.project ? `Project: ${escHtml(task.project)}<br>` : ''}
+      ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
       ${alloc.startDate} → ${alloc.endDate}
     `.trim();
   }
 
   function buildTaskView(task, resource, alloc) {
-    const roleColors = { DEVELOPER: '#16a34a', ANALYST: '#ea580c', TESTER: '#2563eb' };
-    const color = resource ? (roleColors[resource.role] || '#64748b') : '#64748b';
-    const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;vertical-align:middle"></span>`;
+    const dotClass = resource
+      ? `alloc-resource-dot alloc-resource-dot--${resource.role.toLowerCase()}`
+      : 'alloc-resource-dot';
+    const dot = `<span class="${dotClass}" style="width:8px;height:8px;margin-right:5px;vertical-align:middle"></span>`;
     const name = resource ? escHtml(resource.name) : '—';
     return `
       <strong>${escHtml(task.title)}</strong><br>
       ${dot}${name}<br>
+      ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
       ${alloc.startDate} → ${alloc.endDate}
     `.trim();
   }
