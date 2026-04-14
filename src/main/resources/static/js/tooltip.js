@@ -50,8 +50,7 @@ const Tooltip = (() => {
   }
 
   function buildVacationView(vac) {
-    const typeLabels = { VACATION: 'Vacation', SICK_LEAVE: 'Sick leave', DAY_OFF: 'Day off' };
-    const label = typeLabels[vac.type] ?? vac.type;
+    const label = VAC_TYPE_LABELS[vac.type] ?? vac.type;
     return `
       <strong>${escHtml(label)}</strong><br>
       ${vac.comment ? `${escHtml(vac.comment)}<br>` : ''}

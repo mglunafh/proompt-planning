@@ -213,9 +213,6 @@ const SidePanel = (() => {
 
   // ── Resource panel HTML ───────────────────
   function buildResourceContent(resource, tasks, allocations, vacations = []) {
-    const roleLabels = { DEVELOPER: 'Developer', ANALYST: 'Analyst', PRODUCT_OWNER: 'Product owner', TESTER: 'Tester' };
-    const vacTypeLabels = { VACATION: 'Vacation', SICK_LEAVE: 'Sick leave', DAY_OFF: 'Day off' };
-
     const allocRows = allocations.map(a => {
       const task = tasks.find(t => t.id === a.taskId);
       const name = task ? Tooltip.escHtml(task.title) : Tooltip.escHtml(a.taskId);
@@ -228,7 +225,7 @@ const SidePanel = (() => {
     }).join('');
 
     const vacRows = vacations.map(v => {
-      const typeLabel = Tooltip.escHtml(vacTypeLabels[v.type] ?? v.type);
+      const typeLabel = Tooltip.escHtml(VAC_TYPE_LABELS[v.type] ?? v.type);
       const comment   = v.comment ? ` <span style="color:#94a3b8">(${Tooltip.escHtml(v.comment)})</span>` : '';
       const delBtn  = `<button class="btn-alloc-delete" data-action="delete-vacation" data-resource-id="${Tooltip.escHtml(v.resourceId)}" data-start="${v.startDate}" data-end="${v.endDate}" data-type="${Tooltip.escHtml(v.type)}" title="Remove vacation">&times;</button>`;
       const editBtn = `<button class="btn-alloc-edit" data-action="edit-vacation" data-resource-id="${Tooltip.escHtml(v.resourceId)}" data-start="${v.startDate}" data-end="${v.endDate}" data-type="${Tooltip.escHtml(v.type)}" title="Edit vacation">✎</button>`;
@@ -239,7 +236,7 @@ const SidePanel = (() => {
       <div class="panel-title">${Tooltip.escHtml(resource.name)}</div>
       <div class="panel-field">
         <div class="panel-field-label">Role</div>
-        <div><span class="role-badge role-badge--${resource.role.toLowerCase()} role-badge--clickable" data-action="change-role" title="Change role">${Tooltip.escHtml(roleLabels[resource.role] ?? resource.role)}</span></div>
+        <div><span class="role-badge role-badge--${resource.role.toLowerCase()} role-badge--clickable" data-action="change-role" title="Change role">${Tooltip.escHtml(ROLE_LABELS[resource.role] ?? resource.role)}</span></div>
       </div>
       ${field('ID', resource.id)}
       ${allocations.length > 0 ? `
@@ -381,11 +378,7 @@ const SidePanel = (() => {
     const existing = state.vacations.filter(v => v.resourceId === openResourceId);
     const startDate = defaultStartDate(existing, state);
     const endDate   = shiftDate(startDate, 6);
-    const vacTypes  = [
-      { value: 'VACATION',   label: 'Vacation' },
-      { value: 'SICK_LEAVE', label: 'Sick leave' },
-      { value: 'DAY_OFF',    label: 'Day off' },
-    ];
+    const vacTypes = Object.keys(VAC_TYPE_LABELS).map(v => ({ value: v, label: VAC_TYPE_LABELS[v] }));
     const fieldEl = content.querySelector('[data-action="add-vacation"]')?.closest('.panel-field');
     if (!fieldEl) return;
     fieldEl.outerHTML = `
@@ -428,10 +421,9 @@ const SidePanel = (() => {
   function deleteVacation(resourceId, startDate, endDate, type) {
     const state    = State.get();
     const resource = state.resources.find(r => r.id === resourceId);
-    const typeLabels = { VACATION: 'Vacation', SICK_LEAVE: 'Sick leave', DAY_OFF: 'Day off' };
     const resName  = resource ? Tooltip.escHtml(resource.name) : Tooltip.escHtml(resourceId);
     deleteDialogBody.innerHTML =
-      `<strong>${Tooltip.escHtml(typeLabels[type] ?? type)}</strong> — <strong>${resName}</strong><br>` +
+      `<strong>${Tooltip.escHtml(VAC_TYPE_LABELS[type] ?? type)}</strong> — <strong>${resName}</strong><br>` +
       `<span style="color:#64748b;font-size:12px">${startDate} → ${endDate}</span>`;
     _pendingDelete = { _isVacation: true, resourceId, startDate, endDate, type };
     deleteDialog.classList.remove('hidden');
@@ -621,11 +613,7 @@ const SidePanel = (() => {
   function openEditVacationDialog(vac) {
     _editingAllocation = null;
     _editingVacation   = vac;
-    const vacTypes = [
-      { value: 'VACATION',   label: 'Vacation' },
-      { value: 'SICK_LEAVE', label: 'Sick leave' },
-      { value: 'DAY_OFF',    label: 'Day off' },
-    ];
+    const vacTypes = Object.keys(VAC_TYPE_LABELS).map(v => ({ value: v, label: VAC_TYPE_LABELS[v] }));
     editDialogTitle.textContent = 'Edit Vacation';
     editDialogBody.innerHTML = `
       <div class="alloc-form">
@@ -696,27 +684,12 @@ const SidePanel = (() => {
       return shiftDate(latestEnd, 1);
     }
     const rangeStart = document.getElementById('timeline-body').dataset.rangeStart;
-    const base = rangeStart ? parseLocalDate(rangeStart) : new Date();
+    const base = rangeStart ? parseDate(rangeStart) : new Date();
     if (state.zoom === 'week') {
       const dayOfWeek = (base.getDay() + 6) % 7;
       base.setDate(base.getDate() - dayOfWeek);
     }
-    return formatLocalDate(base);
-  }
-
-  function shiftDate(dateStr, days) {
-    const d = parseLocalDate(dateStr);
-    d.setDate(d.getDate() + days);
-    return formatLocalDate(d);
-  }
-
-  function parseLocalDate(str) {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  function formatLocalDate(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return formatDate(base);
   }
 
   function showError(msg) {
@@ -729,10 +702,8 @@ const SidePanel = (() => {
   // ── HTML field helpers ────────────────────
   function typeField(type) {
     if (!type) return '';
-    const labels   = { STORY: 'Story', FEATURE: 'Feature', FEATURE_ENABLER: 'Feature Enabler' };
-    const cssClass = { STORY: 'story', FEATURE: 'feature', FEATURE_ENABLER: 'feature-enabler' };
-    const label    = labels[type] ?? type;
-    const cls      = cssClass[type] ?? 'story';
+    const label = TASK_TYPE_LABELS[type] ?? type;
+    const cls   = taskTypeCssClass(type);
     return `
       <div class="panel-field">
         <div class="panel-field-label">Type</div>
@@ -747,14 +718,6 @@ const SidePanel = (() => {
         <div class="panel-field-label">${label}</div>
         <div>${Tooltip.escHtml(value)}</div>
       </div>`;
-  }
-
-  function taskTypeCssClass(type) {
-    switch (type) {
-      case 'FEATURE': return 'feature';
-      case 'FEATURE_ENABLER': return 'feature-enabler';
-      default: return 'story';
-    }
   }
 
   function openResourceAndShowAllocForm(resourceData, startDate) {

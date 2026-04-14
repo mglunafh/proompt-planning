@@ -1,8 +1,6 @@
 'use strict';
 
 const DragDrop = (() => {
-  const COL_WIDTHS = { day: 40, week: 200 };
-
   function attach() {
     interact('.block[data-draggable="true"]')
       .draggable({
@@ -20,7 +18,7 @@ const DragDrop = (() => {
           end: onResizeEnd,
         },
         modifiers: [
-          interact.modifiers.restrictSize({ minWidth: COL_WIDTHS.day }),
+          interact.modifiers.restrictSize({ minWidth: COL_WIDTH.day }),
         ],
       });
 
@@ -40,7 +38,7 @@ const DragDrop = (() => {
           end: onVacResizeEnd,
         },
         modifiers: [
-          interact.modifiers.restrictSize({ minWidth: COL_WIDTHS.day }),
+          interact.modifiers.restrictSize({ minWidth: COL_WIDTH.day }),
         ],
       });
   }
@@ -54,7 +52,7 @@ const DragDrop = (() => {
 
   function onDragMove(event) {
     const target = event.target;
-    const colWidth = COL_WIDTHS[State.get().zoom];
+    const colWidth = COL_WIDTH[State.get().zoom];
 
     const prevX = parseFloat(target.getAttribute('data-drag-x')) || 0;
     const nextX = prevX + event.dx;
@@ -72,7 +70,7 @@ const DragDrop = (() => {
     target.style.zIndex = '';
 
     const state = State.get();
-    const colWidth = COL_WIDTHS[state.zoom];
+    const colWidth = COL_WIDTH[state.zoom];
     const dx = parseFloat(target.getAttribute('data-drag-x')) || 0;
     const daysShifted = Math.round(dx / colWidth) * (state.zoom === 'week' ? 7 : 1);
 
@@ -161,7 +159,7 @@ const DragDrop = (() => {
   function onResizeMove(event) {
     const target = event.target;
     const zoom = State.get().zoom;
-    const colWidth = COL_WIDTHS[zoom];
+    const colWidth = COL_WIDTH[zoom];
 
     const initialLeft = parseFloat(target.dataset.resizeInitialLeft) || 0;
     const initialWidth = parseFloat(target.dataset.resizeInitialWidth) || 0;
@@ -185,7 +183,7 @@ const DragDrop = (() => {
   async function onResizeEnd(event) {
     const target = event.target;
     const zoom = State.get().zoom;
-    const colWidth = COL_WIDTHS[zoom];
+    const colWidth = COL_WIDTH[zoom];
     const daysPerUnit = zoom === 'week' ? 7 : 1;
 
     const allocIndex = parseInt(target.getAttribute('data-alloc-index'), 10);
@@ -235,7 +233,7 @@ const DragDrop = (() => {
 
   function onVacDragMove(event) {
     const target = event.target;
-    const colWidth = COL_WIDTHS[State.get().zoom];
+    const colWidth = COL_WIDTH[State.get().zoom];
     const prevX = parseFloat(target.getAttribute('data-drag-x')) || 0;
     const nextX = prevX + event.dx;
     target.setAttribute('data-drag-x', nextX);
@@ -246,7 +244,7 @@ const DragDrop = (() => {
     const target = event.target;
     target.style.zIndex = '';
     const state = State.get();
-    const colWidth = COL_WIDTHS[state.zoom];
+    const colWidth = COL_WIDTH[state.zoom];
     const dx = parseFloat(target.getAttribute('data-drag-x')) || 0;
     const daysShifted = Math.round(dx / colWidth) * (state.zoom === 'week' ? 7 : 1);
     target.setAttribute('data-drag-x', '0');
@@ -283,7 +281,7 @@ const DragDrop = (() => {
   async function onVacResizeEnd(event) {
     const target = event.target;
     const state = State.get();
-    const colWidth = COL_WIDTHS[state.zoom];
+    const colWidth = COL_WIDTH[state.zoom];
     const daysPerUnit = state.zoom === 'week' ? 7 : 1;
 
     const origStart    = target.dataset.resizeOrigStart;
@@ -317,14 +315,6 @@ const DragDrop = (() => {
     try {
       await API.savePlan(state.allocations, newVacations);
     } catch (err) { showError('Failed to save plan: ' + err.message); }
-  }
-
-  // ── Helpers ───────────────────────────────
-  function shiftDate(dateStr, days) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    date.setDate(date.getDate() + days);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
   const showError = (msg) => SidePanel.showError(msg);

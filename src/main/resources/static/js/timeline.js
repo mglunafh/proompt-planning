@@ -1,7 +1,6 @@
 'use strict';
 
 const Timeline = (() => {
-  const COL_WIDTH = { day: 40, week: 200 };
   const ROW_HEIGHT = 48;
   const LEFT_COL_WIDTH = 240;
 
@@ -41,12 +40,9 @@ const Timeline = (() => {
   }
 
   // ── Role dropdown (singleton) ────────────
-  const ROLES = ['DEVELOPER', 'ANALYST', 'PRODUCT_OWNER', 'TESTER'];
-
   const roleDropdown = document.createElement('div');
   roleDropdown.id = 'role-dropdown';
   roleDropdown.className = 'role-dropdown hidden';
-  const ROLE_LABELS = { DEVELOPER: 'Developer', ANALYST: 'Analyst', PRODUCT_OWNER: 'Product owner', TESTER: 'Tester' };
 
   ROLES.forEach(role => {
     const item = document.createElement('button');
@@ -103,9 +99,7 @@ const Timeline = (() => {
       range.start.setDate(range.start.getDate() - ((range.start.getDay() + 6) % 7));
     }
     const holidaySet = new Set(state.holidays);
-    bodyEl.dataset.rangeStart = range.start.getFullYear() + '-' +
-      String(range.start.getMonth() + 1).padStart(2, '0') + '-' +
-      String(range.start.getDate()).padStart(2, '0');
+    bodyEl.dataset.rangeStart = formatDate(range.start);
     renderHeader(state, range, holidaySet);
     renderBody(state, range, holidaySet);
     DragDrop.attach();
@@ -371,10 +365,10 @@ const Timeline = (() => {
 
       const roleSelect = document.createElement('select');
       roleSelect.className = 'alloc-vac-type-select';
-      [['DEVELOPER', 'Developer'], ['ANALYST', 'Analyst'], ['PRODUCT_OWNER', 'Product owner'], ['TESTER', 'Tester']].forEach(([val, label]) => {
+      ROLES.forEach(role => {
         const opt = document.createElement('option');
-        opt.value       = val;
-        opt.textContent = label;
+        opt.value       = role;
+        opt.textContent = ROLE_LABELS[role];
         roleSelect.appendChild(opt);
       });
 
@@ -678,12 +672,6 @@ const Timeline = (() => {
   }
 
   // ── Date utilities ───────────────────────
-  function parseDate(str) {
-    if (str instanceof Date) return new Date(str);
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
   function daysBetween(a, b) {
     const msPerDay = 86400000;
     return Math.round((b - a) / msPerDay);
@@ -731,14 +719,6 @@ const Timeline = (() => {
     }
   }
 
-  function taskTypeCssClass(type) {
-    switch (type) {
-      case 'FEATURE': return 'feature';
-      case 'FEATURE_ENABLER': return 'feature-enabler';
-      default: return 'story';
-    }
-  }
-
   function groupByProject(tasks) {
     const map = new Map();
     for (const task of tasks) {
@@ -757,9 +737,7 @@ const Timeline = (() => {
       : Math.floor(x / COL_WIDTH.week * 7);
     const d = parseDate(rangeStart);
     d.setDate(d.getDate() + days);
-    return d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0');
+    return formatDate(d);
   }
 
   return { render, openRoleDropdown, xToDate };
