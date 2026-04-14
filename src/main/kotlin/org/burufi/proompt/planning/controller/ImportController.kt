@@ -37,6 +37,22 @@ class ImportController(
         return ResponseEntity.ok(response)
     }
 
+    @PostMapping("/csv/merge", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun mergeCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
+        val existing = planStateHolder.snapshot
+        val response = csvImportService.merge(file, existing)
+        val merged = Snapshot(
+            version = "1.0",
+            generatedAt = Instant.now(),
+            tasks = (existing?.tasks ?: emptyList()) + response.tasks,
+            resources = (existing?.resources ?: emptyList()) + response.resources,
+            allocations = (existing?.allocations ?: emptyList()) + response.allocations,
+            vacations = existing?.vacations ?: emptyList(),
+        )
+        planStateHolder.update(merged, file.originalFilename ?: "merge.csv")
+        return ResponseEntity.ok(response)
+    }
+
     @PostMapping("/json", consumes = [MediaType.APPLICATION_JSON_VALUE])
     fun importJson(@RequestBody snapshot: Snapshot): ResponseEntity<Snapshot> {
         val result = jsonImportService.import(snapshot)

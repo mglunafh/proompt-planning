@@ -20,6 +20,12 @@ const API = (() => {
     return request('/api/import', { method: 'POST', body: form });
   }
 
+  async function mergeCsv(file) {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/api/import/csv/merge', { method: 'POST', body: form });
+  }
+
   async function importJson(snapshot) {
     return request('/api/import/json', {
       method: 'POST',
@@ -68,5 +74,5 @@ const API = (() => {
     return _holidaysPromise;
   }
 
-  return { importCsv, importJson, getTimeline, savePlan, validate, exportSnapshot, getHolidays };
+  return { importCsv, mergeCsv, importJson, getTimeline, savePlan, validate, exportSnapshot, getHolidays };
 })();

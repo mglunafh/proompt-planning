@@ -16,6 +16,9 @@
         <label class="btn" for="csv-file-input">Import CSV</label>
         <input type="file" id="csv-file-input" accept=".csv" hidden>
 
+        <label class="btn" for="csv-merge-input">Merge CSV</label>
+        <input type="file" id="csv-merge-input" accept=".csv" hidden>
+
         <button id="btn-import-json" class="btn">Import plan</button>
         <input type="file" id="json-file-input" accept=".json" hidden>
 
@@ -58,6 +61,17 @@
       <div class="modal-actions">
         <button id="btn-delete-alloc-confirm" class="btn-modal btn-modal--reload">Delete</button>
         <button id="btn-delete-alloc-cancel" class="btn-modal btn-modal--export">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="edit-alloc-dialog" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal" style="min-width:320px">
+      <div class="modal-title" id="edit-dialog-title">Edit</div>
+      <div class="modal-body" id="edit-dialog-body" style="padding-top:0"></div>
+      <div class="modal-actions">
+        <button id="btn-edit-confirm" class="btn-modal btn-modal--save">Save</button>
+        <button id="btn-edit-cancel" class="btn-modal btn-modal--export">Cancel</button>
       </div>
     </div>
   </div>

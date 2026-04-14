@@ -8,6 +8,35 @@ const SidePanel = (() => {
   let openTaskId     = null;
   let openResourceId = null;
 
+  let _editingAllocation = null; // full Allocation object being edited
+  let _editingVacation   = null; // full Vacation object being edited
+
+  const editDialog      = document.getElementById('edit-alloc-dialog');
+  const editDialogTitle = document.getElementById('edit-dialog-title');
+  const editDialogBody  = document.getElementById('edit-dialog-body');
+
+  document.getElementById('btn-edit-confirm').addEventListener('click', () => {
+    if (_editingAllocation) confirmEditAllocation();
+    else if (_editingVacation) confirmEditVacation();
+  });
+  document.getElementById('btn-edit-cancel').addEventListener('click', closeEditDialog);
+  editDialog.addEventListener('click', (e) => { if (e.target === editDialog) closeEditDialog(); });
+
+  editDialogBody.addEventListener('click', (e) => {
+    const actionEl = e.target.closest('[data-action]');
+    if (actionEl && (actionEl.dataset.action === 'toggle-resource-dropdown' || actionEl.dataset.action === 'toggle-task-dropdown')) {
+      actionEl.closest('.alloc-custom-select')?.querySelector('.alloc-select-list')?.classList.toggle('hidden');
+      return;
+    }
+    const option = e.target.closest('.alloc-resource-option, .alloc-task-option');
+    if (option) selectOptionIn(editDialogBody, option);
+  });
+
+  function closeEditDialog() {
+    _editingAllocation = _editingVacation = null;
+    editDialog.classList.add('hidden');
+  }
+
   document.getElementById('side-panel-close').addEventListener('click', close);
 
   State.subscribe((state) => {
@@ -63,6 +92,22 @@ const SidePanel = (() => {
       case 'delete-vacation':
         deleteVacation(el.dataset.resourceId, el.dataset.start, el.dataset.end, el.dataset.type);
         break;
+      case 'edit-allocation': {
+        const alloc = State.get().allocations.find(a =>
+          a.taskId === el.dataset.taskId && a.resourceId === el.dataset.resourceId &&
+          a.startDate === el.dataset.start && a.endDate === el.dataset.end
+        );
+        if (alloc) openEditAllocationDialog(alloc);
+        break;
+      }
+      case 'edit-vacation': {
+        const vac = State.get().vacations.find(v =>
+          v.resourceId === el.dataset.resourceId && v.startDate === el.dataset.start &&
+          v.endDate === el.dataset.end && v.type === el.dataset.type
+        );
+        if (vac) openEditVacationDialog(vac);
+        break;
+      }
     }
   }
 
@@ -134,8 +179,9 @@ const SidePanel = (() => {
       const nameCell = res
         ? `<span class="alloc-resource-dot alloc-resource-dot--${res.role.toLowerCase()}"></span>${name}`
         : name;
-      const delBtn = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
-      return `<tr><td>${nameCell}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:18px;text-align:right">${delBtn}</td></tr>`;
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Edit allocation">✎</button>`;
+      return `<tr><td>${nameCell}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:36px;text-align:right">${editBtn}${delBtn}</td></tr>`;
     }).join('');
 
     return `
@@ -174,15 +220,17 @@ const SidePanel = (() => {
       const dot  = task
         ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(task.type)}"></span>`
         : '';
-      const delBtn = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
-      return `<tr><td>${dot}${name}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:18px;text-align:right">${delBtn}</td></tr>`;
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Edit allocation">✎</button>`;
+      return `<tr><td>${dot}${name}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:36px;text-align:right">${editBtn}${delBtn}</td></tr>`;
     }).join('');
 
     const vacRows = vacations.map(v => {
       const typeLabel = Tooltip.escHtml(vacTypeLabels[v.type] ?? v.type);
       const comment   = v.comment ? ` <span style="color:#94a3b8">(${Tooltip.escHtml(v.comment)})</span>` : '';
-      const delBtn = `<button class="btn-alloc-delete" data-action="delete-vacation" data-resource-id="${Tooltip.escHtml(v.resourceId)}" data-start="${v.startDate}" data-end="${v.endDate}" data-type="${Tooltip.escHtml(v.type)}" title="Remove vacation">&times;</button>`;
-      return `<tr><td>${typeLabel}${comment}</td><td>${v.startDate}</td><td>${v.endDate}</td><td style="width:18px;text-align:right">${delBtn}</td></tr>`;
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-vacation" data-resource-id="${Tooltip.escHtml(v.resourceId)}" data-start="${v.startDate}" data-end="${v.endDate}" data-type="${Tooltip.escHtml(v.type)}" title="Remove vacation">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit" data-action="edit-vacation" data-resource-id="${Tooltip.escHtml(v.resourceId)}" data-start="${v.startDate}" data-end="${v.endDate}" data-type="${Tooltip.escHtml(v.type)}" title="Edit vacation">✎</button>`;
+      return `<tr><td>${typeLabel}${comment}</td><td>${v.startDate}</td><td>${v.endDate}</td><td style="width:36px;text-align:right">${editBtn}${delBtn}</td></tr>`;
     }).join('');
 
     return `
@@ -416,18 +464,26 @@ const SidePanel = (() => {
   }
 
   function toggleDropdown() {
-    content.querySelector('.alloc-select-list')?.classList.toggle('hidden');
+    toggleDropdownIn(content);
+  }
+
+  function toggleDropdownIn(container) {
+    container.querySelector('.alloc-select-list')?.classList.toggle('hidden');
   }
 
   function selectOption(option) {
-    const container = content.querySelector('.alloc-custom-select');
-    const list      = content.querySelector('.alloc-select-list');
-    if (!container || !list) return;
-    container.dataset.selectedValue = option.dataset.value;
+    selectOptionIn(content, option);
+  }
+
+  function selectOptionIn(container, option) {
+    const customSelect = option.closest('.alloc-custom-select');
+    const list         = customSelect?.querySelector('.alloc-select-list');
+    if (!customSelect || !list) return;
+    customSelect.dataset.selectedValue = option.dataset.value;
     const dot  = option.dataset.role
       ? `<span class="alloc-resource-dot alloc-resource-dot--${option.dataset.role}"></span>`
       : `<span class="alloc-task-dot alloc-task-dot--${option.dataset.type}"></span>`;
-    const trigger = container.querySelector('.alloc-select-trigger');
+    const trigger = customSelect.querySelector('.alloc-select-trigger');
     trigger.innerHTML = `${dot}<span class="alloc-select-label">${Tooltip.escHtml(option.dataset.name)}</span><span class="alloc-select-chevron">▾</span>`;
     list.classList.add('hidden');
   }
@@ -451,6 +507,119 @@ const SidePanel = (() => {
       await API.savePlan(newAllocations, state.vacations);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
+    }
+  }
+
+  // ── Edit allocation/vacation dialog ──────
+  function openEditAllocationDialog(alloc) {
+    _editingVacation   = null;
+    _editingAllocation = alloc;
+    const state = State.get();
+    editDialogTitle.textContent = 'Edit Allocation';
+
+    const taskOptions = state.tasks.map(t => `
+      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
+        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ' ' + t.title)}">
+        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
+        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
+    const selTask  = state.tasks.find(t => t.id === alloc.taskId);
+    const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
+    const taskName = selTask ? Tooltip.escHtml(selTask.id + ' ' + selTask.title) : Tooltip.escHtml(alloc.taskId);
+
+    const resourceOptions = state.resources.map(r => `
+      <button class="alloc-resource-option" data-value="${Tooltip.escHtml(r.id)}"
+        data-role="${r.role.toLowerCase()}" data-name="${Tooltip.escHtml(r.name)}">
+        <span class="alloc-resource-dot alloc-resource-dot--${r.role.toLowerCase()}"></span>
+        ${Tooltip.escHtml(r.name)}</button>`).join('');
+    const selRes  = state.resources.find(r => r.id === alloc.resourceId);
+    const resDot  = selRes ? `<span class="alloc-resource-dot alloc-resource-dot--${selRes.role.toLowerCase()}"></span>` : '';
+    const resName = selRes ? Tooltip.escHtml(selRes.name) : Tooltip.escHtml(alloc.resourceId);
+
+    editDialogBody.innerHTML = `
+      <div class="alloc-form">
+        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
+        ${buildCustomSelectHtml(alloc.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
+        <div class="panel-field-label" style="margin:8px 0 4px">Resource</div>
+        ${buildCustomSelectHtml(alloc.resourceId, resDot, resName, 'toggle-resource-dropdown', resourceOptions)}
+        <div class="alloc-date-row" style="margin-top:8px">
+          <input type="date" class="alloc-date-input" data-field="start" value="${alloc.startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="end" value="${alloc.endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="comment"
+          placeholder="Comment (optional)" value="${Tooltip.escHtml(alloc.comment ?? '')}">
+      </div>`;
+    editDialog.classList.remove('hidden');
+  }
+
+  function openEditVacationDialog(vac) {
+    _editingAllocation = null;
+    _editingVacation   = vac;
+    const vacTypes = [
+      { value: 'VACATION',   label: 'Vacation' },
+      { value: 'SICK_LEAVE', label: 'Sick leave' },
+      { value: 'DAY_OFF',    label: 'Day off' },
+    ];
+    editDialogTitle.textContent = 'Edit Vacation';
+    editDialogBody.innerHTML = `
+      <div class="alloc-form">
+        <select class="alloc-vac-type-select" data-field="vac-type">
+          ${vacTypes.map(t => `<option value="${t.value}"${t.value === vac.type ? ' selected' : ''}>${t.label}</option>`).join('')}
+        </select>
+        <div class="alloc-date-row">
+          <input type="date" class="alloc-date-input" data-field="vac-start" value="${vac.startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="vac-end" value="${vac.endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="vac-comment"
+          placeholder="Comment (optional)" value="${Tooltip.escHtml(vac.comment ?? '')}">
+      </div>`;
+    editDialog.classList.remove('hidden');
+  }
+
+  async function confirmEditAllocation() {
+    const orig       = _editingAllocation;
+    const selects    = editDialogBody.querySelectorAll('.alloc-custom-select');
+    const taskId     = selects[0]?.dataset.selectedValue;
+    const resourceId = selects[1]?.dataset.selectedValue;
+    const startDate  = editDialogBody.querySelector('[data-field="start"]')?.value;
+    const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
+    const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    if (!taskId || !resourceId || !startDate || !endDate) return;
+    const state   = State.get();
+    const updated = { taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newAllocations = state.allocations.map(a =>
+      (a.taskId === orig.taskId && a.resourceId === orig.resourceId &&
+       a.startDate === orig.startDate && a.endDate === orig.endDate) ? updated : a
+    );
+    closeEditDialog();
+    State.set({ allocations: newAllocations });
+    try {
+      await API.savePlan(newAllocations, state.vacations);
+    } catch (err) {
+      showError('Failed to save: ' + err.message);
+    }
+  }
+
+  async function confirmEditVacation() {
+    const orig      = _editingVacation;
+    const type      = editDialogBody.querySelector('[data-field="vac-type"]')?.value;
+    const startDate = editDialogBody.querySelector('[data-field="vac-start"]')?.value;
+    const endDate   = editDialogBody.querySelector('[data-field="vac-end"]')?.value;
+    const comment   = editDialogBody.querySelector('[data-field="vac-comment"]')?.value.trim() || undefined;
+    if (!type || !startDate || !endDate) return;
+    const state   = State.get();
+    const updated = { resourceId: orig.resourceId, startDate, endDate, type, ...(comment ? { comment } : {}) };
+    const newVacations = state.vacations.map(v =>
+      (v.resourceId === orig.resourceId && v.startDate === orig.startDate &&
+       v.endDate === orig.endDate && v.type === orig.type) ? updated : v
+    );
+    closeEditDialog();
+    State.set({ vacations: newVacations });
+    try {
+      await API.savePlan(state.allocations, newVacations);
+    } catch (err) {
+      showError('Failed to save: ' + err.message);
     }
   }
 
@@ -522,5 +691,5 @@ const SidePanel = (() => {
     }
   }
 
-  return { open: openTask, openTask, openResource, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError };
+  return { open: openTask, openTask, openResource, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError, openEditAllocationDialog, openEditVacationDialog, closeEditDialog };
 })();

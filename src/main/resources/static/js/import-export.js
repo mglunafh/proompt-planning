@@ -20,6 +20,24 @@
     }
   });
 
+  document.getElementById('csv-merge-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const current = State.get();
+      const result = await API.mergeCsv(file);
+      State.set({
+        tasks:       [...current.tasks,       ...result.tasks],
+        resources:   [...current.resources,   ...result.resources],
+        allocations: [...current.allocations, ...result.allocations],
+      });
+      if (result.warnings.length > 0) showWarnings(result.warnings);
+    } catch (err) {
+      showError('CSV merge failed: ' + err.message);
+    }
+  });
+
   // ── JSON import ──────────────────────────
   document.getElementById('btn-import-json').addEventListener('click', () => {
     document.getElementById('json-file-input').click();

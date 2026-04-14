@@ -685,6 +685,18 @@ body {
 }
 .btn-alloc-delete:hover { color: #ef4444; background: #fee2e2; }
 
+.btn-alloc-edit {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.btn-alloc-edit:hover { color: #3b82f6; background: #dbeafe; }
+
 /* ── Tooltip ─────────────────────────────── */
 .tooltip {
   position: fixed;
@@ -771,6 +783,8 @@ body {
 .btn-modal--export:hover { background: #2563eb; }
 .btn-modal--reload { background: none; color: #64748b; border: 1px solid #e2e8f0; }
 .btn-modal--reload:hover { background: #f1f5f9; color: #1e293b; }
+.btn-modal--save { background: #22c55e; color: #fff; border: none; }
+.btn-modal--save:hover { background: #16a34a; }
 
 /* ── Empty state ─────────────────────────── */
 .empty-state {

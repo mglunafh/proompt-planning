@@ -211,6 +211,25 @@ document.addEventListener('DOMContentLoaded', () => {
     SidePanel.openTask({ task, resources, allocations });
   });
 
+  // ── Delegated: dblclick ───────────────────
+  timelineBody.addEventListener('dblclick', (e) => {
+    const vacBlock = e.target.closest('.block--vacation[data-resource-id]');
+    if (vacBlock) {
+      const partial = resolveVacation(vacBlock);
+      const full = State.get().vacations.find(v =>
+        v.resourceId === partial.resourceId && v.startDate === partial.startDate &&
+        v.endDate === partial.endDate && v.type === partial.type
+      );
+      if (full) SidePanel.openEditVacationDialog(full);
+      return;
+    }
+    const block = e.target.closest('.block[data-task-id]');
+    if (block) {
+      const alloc = resolveAlloc(block, State.get());
+      if (alloc) SidePanel.openEditAllocationDialog(alloc);
+    }
+  });
+
   // Clear selection when side panel is closed
   document.getElementById('side-panel-close').addEventListener('click', deselect);
 
@@ -236,6 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (e.key === 'Escape' && !reloadDialog.classList.contains('hidden')) {
       closeReloadDialog();
+    } else if (e.key === 'Escape' && !document.getElementById('edit-alloc-dialog').classList.contains('hidden')) {
+      SidePanel.closeEditDialog();
     } else if (e.key === 'Escape') {
       document.getElementById('btn-delete-alloc-cancel').click();
     }

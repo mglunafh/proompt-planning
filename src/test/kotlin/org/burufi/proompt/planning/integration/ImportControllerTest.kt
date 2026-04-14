@@ -1,14 +1,21 @@
 package org.burufi.proompt.planning.integration
 
+import org.burufi.proompt.planning.service.PlanStateHolder
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 class ImportControllerTest : AbstractIntegrationTest() {
+
+    @Autowired
+    private lateinit var planStateHolder: PlanStateHolder
 
     @Test
     fun `POST api-import accepts valid CSV and returns tasks`() {
@@ -115,6 +122,107 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(jsonPath("$.vacations[0].resourceId").value("dev-1"))
             .andExpect(jsonPath("$.vacations[0].type").value("DAY_OFF"))
             .andExpect(jsonPath("$.vacations[0].comment").value("Bank holiday"))
+    }
+
+    // ── Merge CSV ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `POST api-import-csv-merge adds all items when plan is empty`() {
+        val csv = """
+            Issue key,Summary,Assignee,Start date,End date
+            PRJ-1,Login page,Alice,2025-05-01,2025-05-15
+            PRJ-2,Dashboard,Bob,2025-05-10,2025-05-20
+        """.trimIndent().toByteArray()
+
+        mockMvc.perform(multipart("/api/import/csv/merge").file(MockMultipartFile("file", "tasks.csv", "text/csv", csv)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.tasks.length()").value(2))
+            .andExpect(jsonPath("$.resources.length()").value(2))
+            .andExpect(jsonPath("$.allocations.length()").value(2))
+    }
+
+    @Test
+    fun `POST api-import-csv-merge skips existing tasks and resources, adds new ones`() {
+        val seedJson = """
+            {
+              "version": "1.0", "generatedAt": "2025-05-01T00:00:00Z",
+              "tasks": [{"id": "PRJ-1", "title": "Login page", "type": "STORY"}],
+              "resources": [{"id": "alice", "name": "Alice", "role": "DEVELOPER"}],
+              "allocations": [{"taskId": "PRJ-1", "resourceId": "alice", "startDate": "2025-05-01", "endDate": "2025-05-15"}],
+              "vacations": []
+            }
+        """.trimIndent()
+        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
+            .andExpect(status().isOk)
+
+        val csv = """
+            Issue key,Summary,Assignee,Start date,End date
+            PRJ-1,Login page,Alice,2025-05-01,2025-05-15
+            PRJ-2,Dashboard,Bob,2025-05-10,2025-05-20
+        """.trimIndent().toByteArray()
+
+        mockMvc.perform(multipart("/api/import/csv/merge").file(MockMultipartFile("file", "merge.csv", "text/csv", csv)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.tasks.length()").value(1))
+            .andExpect(jsonPath("$.tasks[0].id").value("PRJ-2"))
+            .andExpect(jsonPath("$.resources.length()").value(1))
+            .andExpect(jsonPath("$.resources[0].id").value("bob"))
+            .andExpect(jsonPath("$.allocations.length()").value(1))
+            .andExpect(jsonPath("$.allocations[0].taskId").value("PRJ-2"))
+    }
+
+    @Test
+    fun `POST api-import-csv-merge includes skip-count warnings`() {
+        val seedJson = """
+            {
+              "version": "1.0", "generatedAt": "2025-05-01T00:00:00Z",
+              "tasks": [{"id": "PRJ-1", "title": "Login page", "type": "STORY"}],
+              "resources": [{"id": "alice", "name": "Alice", "role": "DEVELOPER"}],
+              "allocations": [{"taskId": "PRJ-1", "resourceId": "alice", "startDate": "2025-05-01", "endDate": "2025-05-15"}],
+              "vacations": []
+            }
+        """.trimIndent()
+        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
+            .andExpect(status().isOk)
+
+        val csv = """
+            Issue key,Summary,Assignee,Start date,End date
+            PRJ-1,Login page,Alice,2025-05-01,2025-05-15
+        """.trimIndent().toByteArray()
+
+        mockMvc.perform(multipart("/api/import/csv/merge").file(MockMultipartFile("file", "merge.csv", "text/csv", csv)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.warnings[?(@ =~ /.*task.*skipped.*/i)]").isNotEmpty)
+            .andExpect(jsonPath("$.warnings[?(@ =~ /.*resource.*skipped.*/i)]").isNotEmpty)
+            .andExpect(jsonPath("$.warnings[?(@ =~ /.*allocation.*skipped.*/i)]").isNotEmpty)
+    }
+
+    @Test
+    fun `POST api-import-csv-merge preserves existing vacations in plan state`() {
+        val seedJson = """
+            {
+              "version": "1.0", "generatedAt": "2025-05-01T00:00:00Z",
+              "tasks": [{"id": "PRJ-1", "title": "Login page", "type": "STORY"}],
+              "resources": [{"id": "alice", "name": "Alice", "role": "DEVELOPER"}],
+              "allocations": [{"taskId": "PRJ-1", "resourceId": "alice", "startDate": "2025-05-01", "endDate": "2025-05-15"}],
+              "vacations": [{"resourceId": "alice", "startDate": "2025-05-21", "endDate": "2025-05-23", "type": "DAY_OFF"}]
+            }
+        """.trimIndent()
+        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
+            .andExpect(status().isOk)
+
+        val csv = """
+            Issue key,Summary,Assignee,Start date,End date
+            PRJ-2,Dashboard,Bob,2025-05-10,2025-05-20
+        """.trimIndent().toByteArray()
+
+        mockMvc.perform(multipart("/api/import/csv/merge").file(MockMultipartFile("file", "merge.csv", "text/csv", csv)))
+            .andExpect(status().isOk)
+
+        val snapshot = assertNotNull(planStateHolder.snapshot)
+        assertEquals(1, snapshot.vacations.size)
+        assertEquals("alice", snapshot.vacations[0].resourceId)
+        assertEquals(2, snapshot.tasks.size)
     }
 
     @Test
