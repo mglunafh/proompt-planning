@@ -10,6 +10,7 @@ const SidePanel = (() => {
 
   let _editingAllocation = null; // full Allocation object being edited
   let _editingVacation   = null; // full Vacation object being edited
+  let _addingAllocation  = null; // { resourceId, startDate } for new allocation dialog
 
   const editDialog      = document.getElementById('edit-alloc-dialog');
   const editDialogTitle = document.getElementById('edit-dialog-title');
@@ -18,6 +19,7 @@ const SidePanel = (() => {
   document.getElementById('btn-edit-confirm').addEventListener('click', () => {
     if (_editingAllocation) confirmEditAllocation();
     else if (_editingVacation) confirmEditVacation();
+    else if (_addingAllocation) confirmAddAllocationDialog();
   });
   document.getElementById('btn-edit-cancel').addEventListener('click', closeEditDialog);
   editDialog.addEventListener('click', (e) => { if (e.target === editDialog) closeEditDialog(); });
@@ -33,7 +35,7 @@ const SidePanel = (() => {
   });
 
   function closeEditDialog() {
-    _editingAllocation = _editingVacation = null;
+    _editingAllocation = _editingVacation = _addingAllocation = null;
     editDialog.classList.add('hidden');
   }
 
@@ -355,10 +357,10 @@ const SidePanel = (() => {
       startDate, endDate);
   }
 
-  function showAddResourceAllocationForm() {
+  function showAddResourceAllocationForm(prefilledStartDate = null) {
     const state              = State.get();
     const resourceAllocations = state.allocations.filter(a => a.resourceId === openResourceId);
-    const startDate          = defaultStartDate(resourceAllocations, state);
+    const startDate          = prefilledStartDate ?? defaultStartDate(resourceAllocations, state);
     const endDate            = shiftDate(startDate, 6);
     const first              = state.tasks[0];
     const firstType          = first ? taskTypeCssClass(first.type) : 'story';
@@ -505,6 +507,68 @@ const SidePanel = (() => {
     const newAllocations = [...state.allocations, newAlloc];
     State.set({ allocations: newAllocations });
 
+    try {
+      await API.savePlan(newAllocations, state.vacations);
+    } catch (err) {
+      showError('Failed to save plan: ' + err.message);
+    }
+  }
+
+  // ── Add allocation dialog ────────────────
+  function openAddAllocationDialog({ resourceId = null, taskId = null } = {}, startDate) {
+    _editingAllocation = _editingVacation = null;
+    _addingAllocation  = { resourceId };
+    const state   = State.get();
+    const endDate = shiftDate(startDate, 6);
+    editDialogTitle.textContent = 'Add Allocation';
+
+    const taskOptions = state.tasks.map(t => `
+      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
+        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
+        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
+        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
+    const selTask   = taskId ? state.tasks.find(t => t.id === taskId) : null;
+    const taskDot   = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
+    const taskLabel = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : '—';
+
+    const resourceOptions = state.resources.map(r => `
+      <button class="alloc-resource-option" data-value="${Tooltip.escHtml(r.id)}"
+        data-role="${r.role.toLowerCase()}" data-name="${Tooltip.escHtml(r.name)}">
+        <span class="alloc-resource-dot alloc-resource-dot--${r.role.toLowerCase()}"></span>
+        ${Tooltip.escHtml(r.name)}</button>`).join('');
+    const selRes  = resourceId ? state.resources.find(r => r.id === resourceId) : null;
+    const resDot  = selRes ? `<span class="alloc-resource-dot alloc-resource-dot--${selRes.role.toLowerCase()}"></span>` : '';
+    const resName = selRes ? Tooltip.escHtml(selRes.name) : (resourceId ? Tooltip.escHtml(resourceId) : '—');
+
+    editDialogBody.innerHTML = `
+      <div class="alloc-form">
+        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
+        ${buildCustomSelectHtml(selTask?.id ?? '', taskDot, taskLabel, 'toggle-task-dropdown', taskOptions)}
+        <div class="panel-field-label" style="margin:8px 0 4px">Resource</div>
+        ${buildCustomSelectHtml(resourceId ?? '', resDot, resName, 'toggle-resource-dropdown', resourceOptions)}
+        <div class="alloc-date-row" style="margin-top:8px">
+          <input type="date" class="alloc-date-input" data-field="start" value="${startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="end" value="${endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="comment" placeholder="Comment (optional)">
+      </div>`;
+    editDialog.classList.remove('hidden');
+  }
+
+  async function confirmAddAllocationDialog() {
+    const selects    = editDialogBody.querySelectorAll('.alloc-custom-select');
+    const taskId     = selects[0]?.dataset.selectedValue;
+    const resourceId = selects[1]?.dataset.selectedValue;
+    const startDate  = editDialogBody.querySelector('[data-field="start"]')?.value;
+    const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
+    const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    if (!taskId || !resourceId || !startDate || !endDate) return;
+    const state          = State.get();
+    const newAlloc       = { taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newAllocations = [...state.allocations, newAlloc];
+    closeEditDialog();
+    State.set({ allocations: newAllocations });
     try {
       await API.savePlan(newAllocations, state.vacations);
     } catch (err) {
@@ -693,5 +757,10 @@ const SidePanel = (() => {
     }
   }
 
-  return { open: openTask, openTask, openResource, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError, openEditAllocationDialog, openEditVacationDialog, closeEditDialog };
+  function openResourceAndShowAllocForm(resourceData, startDate) {
+    openResource(resourceData);
+    showAddResourceAllocationForm(startDate);
+  }
+
+  return { open: openTask, openTask, openResource, openResourceAndShowAllocForm, openAddAllocationDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError, openEditAllocationDialog, openEditVacationDialog, closeEditDialog };
 })();

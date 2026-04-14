@@ -227,6 +227,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (block) {
       const alloc = resolveAlloc(block, State.get());
       if (alloc) SidePanel.openEditAllocationDialog(alloc);
+      return;
+    }
+
+    // Double-click on empty grid area → open add-allocation form
+    const state = State.get();
+    if (e.target.closest('.row-label')) return;   // ignore label area
+    const row = e.target.closest('.timeline-row');
+    if (!row) return;
+
+    const rowContent = row.querySelector('.row-content');
+    if (!rowContent) return;
+    const rect      = rowContent.getBoundingClientRect();
+    const startDate = Timeline.xToDate(e.clientX - rect.left, state.zoom);
+    if (!startDate) return;
+
+    if (state.viewMode === 'resource') {
+      const resourceLabel = row.querySelector('.row-label[data-resource-id]');
+      if (!resourceLabel) return;
+      SidePanel.openAddAllocationDialog({ resourceId: resourceLabel.dataset.resourceId }, startDate);
+    } else if (state.viewMode === 'task') {
+      const taskLabel = row.querySelector('.row-label[data-task-id]');
+      if (!taskLabel) return;
+      SidePanel.openAddAllocationDialog({ taskId: taskLabel.dataset.taskId }, startDate);
     }
   });
 

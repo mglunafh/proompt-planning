@@ -103,7 +103,9 @@ const Timeline = (() => {
       range.start.setDate(range.start.getDate() - ((range.start.getDay() + 6) % 7));
     }
     const holidaySet = new Set(state.holidays);
-    bodyEl.dataset.rangeStart = range.start.toISOString().slice(0, 10);
+    bodyEl.dataset.rangeStart = range.start.getFullYear() + '-' +
+      String(range.start.getMonth() + 1).padStart(2, '0') + '-' +
+      String(range.start.getDate()).padStart(2, '0');
     renderHeader(state, range, holidaySet);
     renderBody(state, range, holidaySet);
     DragDrop.attach();
@@ -747,5 +749,18 @@ const Timeline = (() => {
     return map;
   }
 
-  return { render, openRoleDropdown };
+  function xToDate(x, zoom) {
+    const rangeStart = bodyEl.dataset.rangeStart;
+    if (!rangeStart) return null;
+    const days = zoom === 'day'
+      ? Math.floor(x / COL_WIDTH.day)
+      : Math.floor(x / COL_WIDTH.week * 7);
+    const d = parseDate(rangeStart);
+    d.setDate(d.getDate() + days);
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  return { render, openRoleDropdown, xToDate };
 })();
