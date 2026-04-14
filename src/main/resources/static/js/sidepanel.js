@@ -185,11 +185,11 @@ const SidePanel = (() => {
     }).join('');
 
     return `
+      <div class="task-id">${Tooltip.escHtml(task.id)}</div>
       <div class="panel-title">${Tooltip.escHtml(task.title)}</div>
       ${typeField(task.type)}
       ${field('Project', task.project)}
       ${field('Status', task.status)}
-      ${field('Task ID', task.id)}
       ${buildChildStoriesHtml(task)}
       ${allocations.length > 0 ? `
         <div class="panel-field">
@@ -211,7 +211,7 @@ const SidePanel = (() => {
 
   // ── Resource panel HTML ───────────────────
   function buildResourceContent(resource, tasks, allocations, vacations = []) {
-    const roleLabels = { DEVELOPER: 'Developer', ANALYST: 'Analyst', TESTER: 'Tester' };
+    const roleLabels = { DEVELOPER: 'Developer', ANALYST: 'Analyst', PRODUCT_OWNER: 'Product owner', TESTER: 'Tester' };
     const vacTypeLabels = { VACATION: 'Vacation', SICK_LEAVE: 'Sick leave', DAY_OFF: 'Day off' };
 
     const allocRows = allocations.map(a => {
@@ -239,6 +239,7 @@ const SidePanel = (() => {
         <div class="panel-field-label">Role</div>
         <div><span class="role-badge role-badge--${resource.role.toLowerCase()} role-badge--clickable" data-action="change-role" title="Change role">${Tooltip.escHtml(roleLabels[resource.role] ?? resource.role)}</span></div>
       </div>
+      ${field('ID', resource.id)}
       ${allocations.length > 0 ? `
         <div class="panel-field">
           <div class="panel-field-label">Allocations</div>
@@ -363,12 +364,13 @@ const SidePanel = (() => {
     const firstType          = first ? taskTypeCssClass(first.type) : 'story';
 
     const optionItems = state.tasks.map(t => `
-      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}" data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.title)}">
-        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>${Tooltip.escHtml(t.title)}
+      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}" data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
+        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
+        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}
       </button>`).join('');
 
     replaceAddButton('[data-action="add-resource-allocation"]',
-      buildCustomSelectHtml(first?.id ?? '', first ? `<span class="alloc-task-dot alloc-task-dot--${firstType}"></span>` : '', first ? Tooltip.escHtml(first.title) : '—', 'toggle-task-dropdown', optionItems),
+      buildCustomSelectHtml(first?.id ?? '', first ? `<span class="alloc-task-dot alloc-task-dot--${firstType}"></span>` : '', first ? Tooltip.escHtml(first.id + ': ' + first.title) : '—', 'toggle-task-dropdown', optionItems),
       startDate, endDate);
   }
 

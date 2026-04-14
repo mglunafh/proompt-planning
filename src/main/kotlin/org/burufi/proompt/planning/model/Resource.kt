@@ -9,5 +9,6 @@ data class Resource(
 enum class Role {
     ANALYST,
     DEVELOPER,
+    PRODUCT_OWNER,
     TESTER,
 }

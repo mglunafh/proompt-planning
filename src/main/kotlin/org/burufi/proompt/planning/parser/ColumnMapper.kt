@@ -10,7 +10,7 @@ object ColumnMapper {
     private val ASSIGNEE = listOf("Assignee", "Assignee Name", "Resource")
     private val START_DATE = listOf("Start date", "Start Date", "Created")
     private val END_DATE = listOf("End date", "End Date", "Due date", "Due Date")
-    private val PARENT_ID = listOf("Story-to-Feature", "Epic Link", "Parent", "Parent Link", "Parent issue", "Epic key", "Parent id", "ParentId")
+    private val PARENT_ID = listOf("Story-to-Feature", "Epic Link", "Parent", "Parent Link", "Parent issue", "Epic key", "Parent id", "ParentId", "Inward issue link(FeatureStory)")
 
     data class Mapping(
         val taskId: String?,

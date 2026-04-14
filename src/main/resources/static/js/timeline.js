@@ -8,16 +8,50 @@ const Timeline = (() => {
   const headerEl = document.getElementById('timeline-header');
   const bodyEl = document.getElementById('timeline-body');
 
+  // ── Resizable left column ────────────────
+  let leftColWidth = 240;
+
+  function attachColResizeHandle(spacer) {
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    spacer.appendChild(handle);
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('resizing');
+      const startX = e.clientX;
+      const startWidth = leftColWidth;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        leftColWidth = Math.max(120, Math.min(500, startWidth + dx));
+        document.documentElement.style.setProperty('--left-col-width', leftColWidth + 'px');
+      }
+
+      function onUp() {
+        handle.classList.remove('resizing');
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+      }
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+    });
+  }
+
   // ── Role dropdown (singleton) ────────────
-  const ROLES = ['DEVELOPER', 'ANALYST', 'TESTER'];
+  const ROLES = ['DEVELOPER', 'ANALYST', 'PRODUCT_OWNER', 'TESTER'];
 
   const roleDropdown = document.createElement('div');
   roleDropdown.id = 'role-dropdown';
   roleDropdown.className = 'role-dropdown hidden';
+  const ROLE_LABELS = { DEVELOPER: 'Developer', ANALYST: 'Analyst', PRODUCT_OWNER: 'Product owner', TESTER: 'Tester' };
+
   ROLES.forEach(role => {
     const item = document.createElement('button');
     item.className = 'role-dropdown-item role-dropdown-item--' + role.toLowerCase();
-    item.textContent = role.charAt(0) + role.slice(1).toLowerCase();
+    item.textContent = ROLE_LABELS[role] ?? role.charAt(0) + role.slice(1).toLowerCase();
     item.dataset.role = role;
     roleDropdown.appendChild(item);
   });
@@ -77,7 +111,10 @@ const Timeline = (() => {
 
   // ── Date range ──────────────────────────
   function computeRange(state) {
-    const dates = state.allocations.flatMap(a => [a.startDate, a.endDate]);
+    const dates = [
+      ...state.allocations.flatMap(a => [a.startDate, a.endDate]),
+      ...state.vacations.flatMap(v => [v.startDate, v.endDate]),
+    ];
     const start = parseDate(dates.reduce((a, b) => (a < b ? a : b)));
     const end = parseDate(dates.reduce((a, b) => (a > b ? a : b)));
     // pad by a few days/weeks for visual breathing room
@@ -123,6 +160,7 @@ const Timeline = (() => {
 
     const daySpacer = document.createElement('div');
     daySpacer.className = 'timeline-header-spacer';
+    attachColResizeHandle(daySpacer);
     dayRow.appendChild(daySpacer);
 
     const today = new Date();
@@ -221,7 +259,7 @@ const Timeline = (() => {
       });
       const badge = document.createElement('span');
       badge.className = 'role-badge role-badge--' + resource.role.toLowerCase();
-      badge.textContent = resource.role.charAt(0);
+      badge.textContent = (ROLE_LABELS[resource.role] ?? resource.role).charAt(0).toUpperCase();
       label.appendChild(badge);
       const text = document.createElement('span');
       text.className = 'row-label-text';
@@ -262,20 +300,28 @@ const Timeline = (() => {
       if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
       else addWeekBorders(content, range);
 
-      // Vacation blocks
-      for (const vac of state.vacations.filter(v => v.resourceId === resource.id)) {
-        const block = createVacationBlock(vac, range, state.zoom);
-        content.appendChild(block);
-      }
-
-      // Allocation blocks
+      // Vacations and allocations share lane assignment — overlapping items get separate lanes
+      const vacs   = state.vacations.filter(v => v.resourceId === resource.id);
       const allocs = state.allocations.filter(a => a.resourceId === resource.id);
-      for (const alloc of allocs) {
-        const task = taskById.get(alloc.taskId);
-        if (!task) continue;
-        const allocIndex = allocIndexMap.get(alloc);
-        const block = createTaskBlock(task, alloc, allocIndex, state.zoom, range);
-        content.appendChild(block);
+
+      const allItems = [
+        ...vacs.map(v => ({ kind: 'vac', item: v, startDate: v.startDate, endDate: v.endDate })),
+        ...allocs.map(a => ({ kind: 'alloc', item: a, startDate: a.startDate, endDate: a.endDate })),
+      ];
+      const laned     = assignLanes(allItems, 'startDate', 'endDate');
+      const laneCount = laned.length > 0 ? Math.max(...laned.map(x => x.lane)) + 1 : 1;
+      if (laneCount > 1) row.style.height = (ROW_HEIGHT * laneCount) + 'px';
+
+      for (const { item: tagged, lane } of laned) {
+        if (tagged.kind === 'vac') {
+          content.appendChild(createVacationBlock(tagged.item, range, state.zoom, lane));
+        } else {
+          const alloc = tagged.item;
+          const task  = taskById.get(alloc.taskId);
+          if (!task) continue;
+          const allocIndex = allocIndexMap.get(alloc);
+          content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, null, lane));
+        }
       }
 
       row.appendChild(label);
@@ -308,9 +354,22 @@ const Timeline = (() => {
       nameInput.placeholder = 'Name';
       nameInput.style.marginBottom = '6px';
 
+      const idInput = document.createElement('input');
+      idInput.type        = 'text';
+      idInput.className   = 'alloc-vac-comment-input';
+      idInput.placeholder = 'Resource ID';
+      idInput.style.marginBottom = '6px';
+
+      nameInput.addEventListener('input', () => {
+        if (!idInput.dataset.edited) {
+          idInput.value = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }
+      });
+      idInput.addEventListener('input', () => { idInput.dataset.edited = '1'; });
+
       const roleSelect = document.createElement('select');
       roleSelect.className = 'alloc-vac-type-select';
-      [['DEVELOPER', 'Developer'], ['ANALYST', 'Analyst'], ['TESTER', 'Tester']].forEach(([val, label]) => {
+      [['DEVELOPER', 'Developer'], ['ANALYST', 'Analyst'], ['PRODUCT_OWNER', 'Product owner'], ['TESTER', 'Tester']].forEach(([val, label]) => {
         const opt = document.createElement('option');
         opt.value       = val;
         opt.textContent = label;
@@ -326,7 +385,8 @@ const Timeline = (() => {
       confirmBtn.addEventListener('click', () => {
         const name = nameInput.value.trim();
         if (!name) { nameInput.focus(); return; }
-        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
+        const id = idInput.value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
+        if (!id) { idInput.focus(); return; }
         const s  = State.get();
         State.set({ resources: [...s.resources, { id, name, role: roleSelect.value }] });
         // re-render rebuilds the row with the button
@@ -341,10 +401,15 @@ const Timeline = (() => {
         if (e.key === 'Enter')  confirmBtn.click();
         if (e.key === 'Escape') showAddResourceButton();
       });
+      idInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter')  confirmBtn.click();
+        if (e.key === 'Escape') showAddResourceButton();
+      });
 
       actions.appendChild(confirmBtn);
       actions.appendChild(cancelBtn);
       form.appendChild(nameInput);
+      form.appendChild(idInput);
       form.appendChild(roleSelect);
       form.appendChild(actions);
       addRow.appendChild(form);
@@ -434,7 +499,7 @@ const Timeline = (() => {
     const text = document.createElement('span');
     text.className = 'row-label-text';
     const idChip = document.createElement('span');
-    idChip.className = 'row-label-id';
+    idChip.className = 'task-id';
     idChip.textContent = task.id;
     text.appendChild(idChip);
     text.appendChild(document.createTextNode(task.title));
@@ -446,11 +511,15 @@ const Timeline = (() => {
     if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
     else                      addWeekBorders(content, range);
 
-    const allocs = state.allocations.filter(a => a.taskId === task.id);
-    for (const alloc of allocs) {
+    const allocs     = state.allocations.filter(a => a.taskId === task.id);
+    const allocLaned = assignLanes(allocs, 'startDate', 'endDate');
+    const laneCount  = allocLaned.length > 0 ? Math.max(...allocLaned.map(x => x.lane)) + 1 : 1;
+    if (laneCount > 1) row.style.height = (ROW_HEIGHT * laneCount) + 'px';
+
+    for (const { item: alloc, lane } of allocLaned) {
       const allocIndex = allocIndexMap.get(alloc);
       const resource   = resourceById.get(alloc.resourceId);
-      content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, resource));
+      content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, resource, lane));
     }
 
     row.appendChild(label);
@@ -458,8 +527,20 @@ const Timeline = (() => {
     return row;
   }
 
+  // ── Lane assignment (overlapping bars) ──────
+  function assignLanes(items, startKey, endKey) {
+    const sorted = [...items].sort((a, b) => a[startKey].localeCompare(b[startKey]));
+    const laneEnds = [];
+    return sorted.map(item => {
+      let lane = laneEnds.findIndex(end => end < item[startKey]);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(''); }
+      laneEnds[lane] = item[endKey];
+      return { item, lane };
+    });
+  }
+
   // ── Block factories ──────────────────────
-  function createTaskBlock(task, alloc, allocIndex, zoom, range, resource = null) {
+  function createTaskBlock(task, alloc, allocIndex, zoom, range, resource = null, lane = 0) {
     const block = document.createElement('div');
     const colorClass = resource
       ? 'block--resource-' + resource.role.toLowerCase()
@@ -486,13 +567,14 @@ const Timeline = (() => {
 
     const left = dateToX(parseDate(alloc.startDate), range.start, zoom);
     const width = Math.max(durationToWidth(alloc.startDate, alloc.endDate, zoom), 4);
-    block.style.left = left + 'px';
-    block.style.width = width + 'px';
+    block.style.left  = (left + 2) + 'px';
+    block.style.width = Math.max(width - 4, 4) + 'px';
+    if (lane > 0) block.style.top = (6 + lane * ROW_HEIGHT) + 'px';
 
     return block;
   }
 
-  function createVacationBlock(vac, range, zoom) {
+  function createVacationBlock(vac, range, zoom, lane = 0) {
     const block = document.createElement('div');
     block.className = 'block block--vacation';
     block.setAttribute('title', vac.type + (vac.comment ? ': ' + vac.comment : ''));
@@ -505,8 +587,9 @@ const Timeline = (() => {
 
     const left = dateToX(parseDate(vac.startDate), range.start, zoom);
     const width = Math.max(durationToWidth(vac.startDate, vac.endDate, zoom), 4);
-    block.style.left = left + 'px';
-    block.style.width = width + 'px';
+    block.style.left  = (left + 2) + 'px';
+    block.style.width = Math.max(width - 4, 4) + 'px';
+    if (lane > 0) block.style.top = (6 + lane * ROW_HEIGHT) + 'px';
 
     const handleLeft = document.createElement('div');
     handleLeft.className = 'resize-handle resize-handle--left';
