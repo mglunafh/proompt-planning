@@ -17,7 +17,7 @@ const API = (() => {
   async function importCsv(file) {
     const form = new FormData();
     form.append('file', file);
-    return request('/api/import', { method: 'POST', body: form });
+    return request('/api/import/csv', { method: 'POST', body: form });
   }
 
   async function mergeCsv(file) {
@@ -26,12 +26,10 @@ const API = (() => {
     return request('/api/import/csv/merge', { method: 'POST', body: form });
   }
 
-  async function importJson(snapshot) {
-    return request('/api/import/json', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshot),
-    });
+  async function importPlan(file) {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/api/import/plan', { method: 'POST', body: form });
   }
 
   async function getTimeline(snapshot, from, to, mode) {
@@ -74,5 +72,5 @@ const API = (() => {
     return _holidaysPromise;
   }
 
-  return { importCsv, mergeCsv, importJson, getTimeline, savePlan, validate, exportSnapshot, getHolidays };
+  return { importCsv, mergeCsv, importPlan, getTimeline, savePlan, validate, exportSnapshot, getHolidays };
 })();

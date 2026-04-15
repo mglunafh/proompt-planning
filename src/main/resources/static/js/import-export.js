@@ -25,12 +25,11 @@
     if (!file) return;
     e.target.value = '';
     try {
-      const current = State.get();
       const result = await API.mergeCsv(file);
       State.set({
-        tasks:       [...current.tasks,       ...result.tasks],
-        resources:   [...current.resources,   ...result.resources],
-        allocations: [...current.allocations, ...result.allocations],
+        tasks:       result.tasks,
+        resources:   result.resources,
+        allocations: result.allocations,
       });
       if (result.warnings.length > 0) showWarnings(result.warnings);
     } catch (err) {
@@ -48,9 +47,7 @@
     if (!file) return;
     e.target.value = '';
     try {
-      const text = await file.text();
-      const snapshot = JSON.parse(text);
-      const normalized = await API.importJson(snapshot);
+      const normalized = await API.importPlan(file);
       State.set({
         tasks: normalized.tasks,
         resources: normalized.resources,

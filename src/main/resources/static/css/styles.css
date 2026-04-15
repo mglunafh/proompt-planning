@@ -142,7 +142,6 @@ body {
   background: #f1f5f9;
   z-index: 11;
   border-right: 1px solid #cbd5e1;
-  position: relative;
 }
 
 .col-resize-handle {
@@ -257,21 +256,27 @@ body {
 
 /* ── Project group header ───────────────── */
 .project-group-header {
+  height: 28px;
+  min-width: 100%;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.project-group-label {
   display: flex;
   align-items: center;
   padding: 0 10px;
-  height: 28px;
+  height: 100%;
+  width: var(--left-col-width, 240px);
   background: #f1f5f9;
   font-size: 15px;
   font-weight: 700;
   color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid #e2e8f0;
   position: sticky;
   left: 0;
-  width: 200px;
-  min-width: 100%;
+  z-index: 5;
 }
 
 /* ── Feature collapse toggle ────────────── */
@@ -364,7 +369,12 @@ body {
   );
   z-index: 4;
   opacity: 0.7;
-  color: transparent;
+}
+
+.block--vacation .block-title {
+  color: #000;
+  font-weight: 700;
+  text-shadow: 0 0 3px #cbd5e1, 0 0 3px #cbd5e1;
 }
 
 /* ── Row label colors ───────────────────── */

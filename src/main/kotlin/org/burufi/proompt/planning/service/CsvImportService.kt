@@ -43,9 +43,9 @@ class CsvImportService(private val csvParser: CsvParser) {
         }
 
         return ImportCsvResponse(
-            tasks       = newTasks,
-            resources   = newResources,
-            allocations = newAllocs,
+            tasks       = (existing?.tasks       ?: emptyList()) + newTasks,
+            resources   = (existing?.resources   ?: emptyList()) + newResources,
+            allocations = (existing?.allocations ?: emptyList()) + newAllocs,
             warnings    = parsed.warnings + skipWarnings,
         )
     }

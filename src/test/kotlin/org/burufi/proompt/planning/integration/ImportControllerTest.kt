@@ -3,10 +3,8 @@ package org.burufi.proompt.planning.integration
 import org.burufi.proompt.planning.service.PlanStateHolder
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import kotlin.test.assertEquals
@@ -27,7 +25,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
 
         val file = MockMultipartFile("file", "tasks.csv", "text/csv", csv)
 
-        mockMvc.perform(multipart("/api/import").file(file))
+        mockMvc.perform(multipart("/api/import/csv").file(file))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks.length()").value(2))
             .andExpect(jsonPath("$.tasks[0].id").value("PRJ-1"))
@@ -45,7 +43,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
 
         val file = MockMultipartFile("file", "tasks.csv", "text/csv", csv)
 
-        mockMvc.perform(multipart("/api/import").file(file))
+        mockMvc.perform(multipart("/api/import/csv").file(file))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks.length()").value(2))
             .andExpect(jsonPath("$.allocations.length()").value(2))
@@ -68,9 +66,8 @@ class ImportControllerTest : AbstractIntegrationTest() {
         """.trimIndent()
 
         mockMvc.perform(
-            post("/api/import/json")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json),
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", json.toByteArray())),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks[0].id").value("T-1"))
@@ -106,9 +103,8 @@ class ImportControllerTest : AbstractIntegrationTest() {
         """.trimIndent()
 
         mockMvc.perform(
-            post("/api/import/json")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json),
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", json.toByteArray())),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks.length()").value(4))
@@ -152,8 +148,10 @@ class ImportControllerTest : AbstractIntegrationTest() {
               "vacations": []
             }
         """.trimIndent()
-        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
-            .andExpect(status().isOk)
+        mockMvc.perform(
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", seedJson.toByteArray())),
+        ).andExpect(status().isOk)
 
         val csv = """
             Issue key,Summary,Assignee,Start date,End date
@@ -163,12 +161,11 @@ class ImportControllerTest : AbstractIntegrationTest() {
 
         mockMvc.perform(multipart("/api/import/csv/merge").file(MockMultipartFile("file", "merge.csv", "text/csv", csv)))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.tasks.length()").value(1))
-            .andExpect(jsonPath("$.tasks[0].id").value("PRJ-2"))
-            .andExpect(jsonPath("$.resources.length()").value(1))
-            .andExpect(jsonPath("$.resources[0].id").value("bob"))
-            .andExpect(jsonPath("$.allocations.length()").value(1))
-            .andExpect(jsonPath("$.allocations[0].taskId").value("PRJ-2"))
+            .andExpect(jsonPath("$.tasks.length()").value(2))
+            .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-1')]").isNotEmpty)
+            .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-2')]").isNotEmpty)
+            .andExpect(jsonPath("$.resources.length()").value(2))
+            .andExpect(jsonPath("$.allocations.length()").value(2))
     }
 
     @Test
@@ -182,8 +179,10 @@ class ImportControllerTest : AbstractIntegrationTest() {
               "vacations": []
             }
         """.trimIndent()
-        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
-            .andExpect(status().isOk)
+        mockMvc.perform(
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", seedJson.toByteArray())),
+        ).andExpect(status().isOk)
 
         val csv = """
             Issue key,Summary,Assignee,Start date,End date
@@ -208,8 +207,10 @@ class ImportControllerTest : AbstractIntegrationTest() {
               "vacations": [{"resourceId": "alice", "startDate": "2025-05-21", "endDate": "2025-05-23", "type": "DAY_OFF"}]
             }
         """.trimIndent()
-        mockMvc.perform(post("/api/import/json").contentType(MediaType.APPLICATION_JSON).content(seedJson))
-            .andExpect(status().isOk)
+        mockMvc.perform(
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", seedJson.toByteArray())),
+        ).andExpect(status().isOk)
 
         val csv = """
             Issue key,Summary,Assignee,Start date,End date
@@ -239,9 +240,8 @@ class ImportControllerTest : AbstractIntegrationTest() {
         """.trimIndent()
 
         mockMvc.perform(
-            post("/api/import/json")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json),
+            multipart("/api/import/plan")
+                .file(MockMultipartFile("file", "plan.json", "application/json", json.toByteArray())),
         )
             .andExpect(status().isUnprocessableEntity)
             .andExpect(jsonPath("$.error").exists())

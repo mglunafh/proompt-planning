@@ -427,7 +427,10 @@ const Timeline = (() => {
     for (const [project, tasks] of byProject) {
       const groupHeader = document.createElement('div');
       groupHeader.className = 'project-group-header';
-      groupHeader.textContent = project || 'No Project';
+      const groupLabel = document.createElement('div');
+      groupLabel.className = 'project-group-label';
+      groupLabel.textContent = project || 'No Project';
+      groupHeader.appendChild(groupLabel);
       frag.appendChild(groupHeader);
 
       const parents  = tasks.filter(t => t.type === 'FEATURE' || t.type === 'FEATURE_ENABLER');
@@ -552,7 +555,8 @@ const Timeline = (() => {
 
     const title = document.createElement('span');
     title.className = 'block-title';
-    title.textContent = resource ? resource.name : task.id;
+    const base = resource ? resource.name : task.id;
+    title.textContent = alloc.comment ? `${base} (${alloc.comment})` : base;
 
     const handleRight = document.createElement('div');
     handleRight.className = 'resize-handle resize-handle--right';
@@ -592,6 +596,12 @@ const Timeline = (() => {
     const handleRight = document.createElement('div');
     handleRight.className = 'resize-handle resize-handle--right';
     block.appendChild(handleLeft);
+    if (vac.comment) {
+      const title = document.createElement('span');
+      title.className = 'block-title';
+      title.textContent = vac.comment;
+      block.appendChild(title);
+    }
     block.appendChild(handleRight);
 
     return block;

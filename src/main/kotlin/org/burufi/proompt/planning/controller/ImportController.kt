@@ -1,5 +1,6 @@
 package org.burufi.proompt.planning.controller
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.burufi.proompt.planning.dto.ImportCsvResponse
 import org.burufi.proompt.planning.model.Snapshot
 import org.burufi.proompt.planning.service.CsvImportService
@@ -8,7 +9,6 @@ import org.burufi.proompt.planning.service.PlanStateHolder
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -21,9 +21,10 @@ class ImportController(
     private val csvImportService: CsvImportService,
     private val jsonImportService: JsonImportService,
     private val planStateHolder: PlanStateHolder,
+    private val objectMapper: ObjectMapper,
 ) {
 
-    @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PostMapping("/csv", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun importCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
         val response = csvImportService.import(file)
         val snapshot = Snapshot(
@@ -44,19 +45,20 @@ class ImportController(
         val merged = Snapshot(
             version = "1.0",
             generatedAt = Instant.now(),
-            tasks = (existing?.tasks ?: emptyList()) + response.tasks,
-            resources = (existing?.resources ?: emptyList()) + response.resources,
-            allocations = (existing?.allocations ?: emptyList()) + response.allocations,
+            tasks = response.tasks,
+            resources = response.resources,
+            allocations = response.allocations,
             vacations = existing?.vacations ?: emptyList(),
         )
         planStateHolder.update(merged, file.originalFilename ?: "merge.csv")
         return ResponseEntity.ok(response)
     }
 
-    @PostMapping("/json", consumes = [MediaType.APPLICATION_JSON_VALUE])
-    fun importJson(@RequestBody snapshot: Snapshot): ResponseEntity<Snapshot> {
+    @PostMapping("/plan", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun importPlan(@RequestParam("file") file: MultipartFile): ResponseEntity<Snapshot> {
+        val snapshot = objectMapper.readValue(file.inputStream, Snapshot::class.java)
         val result = jsonImportService.import(snapshot)
-        planStateHolder.update(result, "snapshot.json")
+        planStateHolder.update(result, file.originalFilename ?: "snapshot.json")
         return ResponseEntity.ok(result)
     }
 }
