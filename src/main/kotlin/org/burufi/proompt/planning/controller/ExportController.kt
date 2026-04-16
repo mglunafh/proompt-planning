@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -13,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController
 class ExportController(private val exportService: ExportService) {
 
     @PostMapping
-    fun export(@RequestBody snapshot: Snapshot): ResponseEntity<Snapshot> =
-        ResponseEntity.ok(exportService.export(snapshot))
+    fun export(
+        @RequestBody snapshot: Snapshot,
+        @RequestParam(required = false) filename: String?,
+    ): ResponseEntity<Snapshot> =
+        ResponseEntity.ok(exportService.export(snapshot, filename))
 }

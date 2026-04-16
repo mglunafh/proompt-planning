@@ -7,12 +7,12 @@ import java.time.Instant
 @Service
 class ExportService(private val planSaveService: PlanSaveService) {
 
-    fun export(snapshot: Snapshot): Snapshot {
+    fun export(snapshot: Snapshot, filename: String?): Snapshot {
         val enriched = snapshot.copy(
             version = "1.0.${System.currentTimeMillis()}",
             generatedAt = Instant.now(),
         )
-        planSaveService.save(enriched)
+        planSaveService.save(enriched, filename)
         return enriched
     }
 }

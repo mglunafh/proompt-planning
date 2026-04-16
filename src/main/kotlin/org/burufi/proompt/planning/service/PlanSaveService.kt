@@ -16,9 +16,7 @@ class PlanSaveService(
 
     private val log = LoggerFactory.getLogger(PlanSaveService::class.java)
 
-    fun save(snapshot: Snapshot) {
-        val filename = planStateHolder.sourceFilename ?: "snapshot"
-
+    fun save(snapshot: Snapshot, filename: String? = null) {
         val dataDir = File(System.getProperty("user.dir"), "data")
         if (!dataDir.exists()) {
             if (!dataDir.mkdirs()) {
@@ -30,10 +28,16 @@ class PlanSaveService(
             return
         }
 
-        val rawBase = filename.substringBeforeLast('.')
-        val baseName = rawBase.replace(Regex("_\\d{8}_\\d{6}$"), "")
-        val datetime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-        val saveFile = File(dataDir, "${baseName}_${datetime}.json")
+        val saveFile = if (filename != null) {
+            val name = filename.removeSuffix(".json")
+            File(dataDir, "${name}.json")
+        } else {
+            val source = planStateHolder.sourceFilename ?: "snapshot"
+            val rawBase = source.substringBeforeLast('.')
+            val baseName = rawBase.replace(Regex("_\\d{8}_\\d{6}$"), "")
+            val datetime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+            File(dataDir, "${baseName}_${datetime}.json")
+        }
 
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(saveFile, snapshot)

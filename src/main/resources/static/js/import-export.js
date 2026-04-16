@@ -61,6 +61,17 @@
 
   // ── Export ───────────────────────────────
   document.getElementById('btn-export').addEventListener('click', async () => {
+    let fileHandle;
+    try {
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName: 'workload-plan.json',
+        types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') showError('Export failed: ' + err.message);
+      return;
+    }
+
     const state = State.get();
     const snapshot = {
       version: '1.0',
@@ -71,7 +82,10 @@
       vacations: state.vacations,
     };
     try {
-      await API.exportSnapshot(snapshot);
+      const exported = await API.exportSnapshot(snapshot, fileHandle.name);
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(exported, null, 2));
+      await writable.close();
     } catch (err) {
       showError('Export failed: ' + err.message);
     }

@@ -7,5 +7,5 @@ const ROLE_LABELS = { DEVELOPER: 'Developer', ANALYST: 'Analyst', PRODUCT_OWNER:
 
 const VAC_TYPE_LABELS = { VACATION: 'Vacation', SICK_LEAVE: 'Sick leave', DAY_OFF: 'Day off' };
 
-const TASK_TYPE_LABELS = { STORY: 'Story', FEATURE: 'Feature', FEATURE_ENABLER: 'Feature Enabler' };
-const TASK_TYPE_CSS    = { STORY: 'story', FEATURE: 'feature', FEATURE_ENABLER: 'feature-enabler' };
+const TASK_TYPE_LABELS = { STORY: 'Story', FEATURE: 'Feature', FEATURE_ENABLER: 'Feature Enabler', RND: 'R&D' };
+const TASK_TYPE_CSS    = { STORY: 'story', FEATURE: 'feature', FEATURE_ENABLER: 'feature-enabler', RND: 'rnd' };

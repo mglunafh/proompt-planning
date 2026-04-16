@@ -4,6 +4,7 @@
   --color-story:           #4f46e5;
   --color-feature:         #0891b2;
   --color-feature-enabler: #d97706;
+  --color-rnd:             #db2777;
 
   /* Resource role palette */
   --color-developer:     #16a34a;
@@ -352,6 +353,7 @@ body {
 .block--story           { background: var(--color-story); }
 .block--feature         { background: var(--color-feature); }
 .block--feature-enabler { background: var(--color-feature-enabler); }
+.block--rnd             { background: var(--color-rnd); }
 
 .block--resource-developer     { background: var(--color-developer); }
 .block--resource-analyst       { background: var(--color-analyst); }
@@ -386,6 +388,7 @@ body {
 .row-label--story           { background: #eef2ff; border-left: 3px solid var(--color-story); }
 .row-label--feature         { background: #ecfeff; border-left: 3px solid var(--color-feature); }
 .row-label--feature-enabler { background: #fffbeb; border-left: 3px solid var(--color-feature-enabler); }
+.row-label--rnd             { background: #fdf2f8; border-left: 3px solid var(--color-rnd); }
 
 /* ── Add resource row ────────────────────── */
 .timeline-row--add-resource {
@@ -496,6 +499,7 @@ body {
 .type-badge--story           { background: #eef2ff; color: var(--color-story); }
 .type-badge--feature         { background: #ecfeff; color: var(--color-feature); }
 .type-badge--feature-enabler { background: #fffbeb; color: var(--color-feature-enabler); }
+.type-badge--rnd             { background: #fdf2f8; color: var(--color-rnd); }
 
 /* ── Side panel ─────────────────────────── */
 #side-panel {
@@ -575,6 +579,7 @@ body {
 .alloc-task-dot--story           { background: var(--color-story); }
 .alloc-task-dot--feature         { background: var(--color-feature); }
 .alloc-task-dot--feature-enabler { background: var(--color-feature-enabler); }
+.alloc-task-dot--rnd             { background: var(--color-rnd); }
 
 /* ── Side panel: add allocation form ────── */
 .alloc-custom-select {

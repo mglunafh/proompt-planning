@@ -30,7 +30,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(jsonPath("$.tasks.length()").value(2))
             .andExpect(jsonPath("$.tasks[0].id").value("PRJ-1"))
             .andExpect(jsonPath("$.resources.length()").value(2))
-            .andExpect(jsonPath("$.allocations.length()").value(2))
+            .andExpect(jsonPath("$.allocations.length()").value(0))
     }
 
     @Test
@@ -46,10 +46,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
         mockMvc.perform(multipart("/api/import/csv").file(file))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks.length()").value(2))
-            .andExpect(jsonPath("$.allocations.length()").value(2))
-            .andExpect(jsonPath("$.allocations[0].startDate").value("2025-05-01"))
-            .andExpect(jsonPath("$.allocations[0].endDate").value("2025-05-15"))
-            .andExpect(jsonPath("$.warnings").isEmpty)
+            .andExpect(jsonPath("$.allocations.length()").value(0))
     }
 
     @Test
@@ -134,7 +131,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.tasks.length()").value(2))
             .andExpect(jsonPath("$.resources.length()").value(2))
-            .andExpect(jsonPath("$.allocations.length()").value(2))
+            .andExpect(jsonPath("$.allocations.length()").value(0))
     }
 
     @Test
@@ -165,7 +162,7 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-1')]").isNotEmpty)
             .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-2')]").isNotEmpty)
             .andExpect(jsonPath("$.resources.length()").value(2))
-            .andExpect(jsonPath("$.allocations.length()").value(2))
+            .andExpect(jsonPath("$.allocations.length()").value(1))
     }
 
     @Test
@@ -193,7 +190,6 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.warnings[?(@ =~ /.*task.*skipped.*/i)]").isNotEmpty)
             .andExpect(jsonPath("$.warnings[?(@ =~ /.*resource.*skipped.*/i)]").isNotEmpty)
-            .andExpect(jsonPath("$.warnings[?(@ =~ /.*allocation.*skipped.*/i)]").isNotEmpty)
     }
 
     @Test

@@ -56,8 +56,9 @@ const API = (() => {
     });
   }
 
-  async function exportSnapshot(snapshot) {
-    return request('/api/export', {
+  async function exportSnapshot(snapshot, filename) {
+    const url = filename ? `/api/export?filename=${encodeURIComponent(filename)}` : '/api/export';
+    return request(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(snapshot),

@@ -13,4 +13,5 @@ enum class TaskType {
     STORY,
     FEATURE,
     FEATURE_ENABLER,
+    RND,
 }

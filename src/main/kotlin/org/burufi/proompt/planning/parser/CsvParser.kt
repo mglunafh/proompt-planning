@@ -2,7 +2,6 @@ package org.burufi.proompt.planning.parser
 
 import org.apache.commons.csv.CSVFormat
 import org.burufi.proompt.planning.dto.ImportCsvResponse
-import org.burufi.proompt.planning.model.Allocation
 import org.burufi.proompt.planning.model.Resource
 import org.burufi.proompt.planning.model.Role
 import org.burufi.proompt.planning.model.Task
@@ -10,17 +9,9 @@ import org.burufi.proompt.planning.model.TaskType
 import org.springframework.stereotype.Component
 import java.io.InputStream
 import java.io.InputStreamReader
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
-import java.util.Locale
 
 @Component
 class CsvParser {
-
-    private val dateFormatter    = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    private val altDateFormatter = DateTimeFormatter.ofPattern("dd/MMM/yy HH:mm", Locale.ENGLISH)
 
     fun parse(inputStream: InputStream): ImportCsvResponse {
         val warnings = mutableListOf<String>()
@@ -50,7 +41,6 @@ class CsvParser {
 
         val tasks = mutableListOf<Task>()
         val resourcesById = mutableMapOf<String, Resource>()
-        val allocations = mutableListOf<Allocation>()
         val seenTaskIds = mutableSetOf<String>()
 
         for ((rowIndex, record) in records.withIndex()) {
@@ -80,45 +70,15 @@ class CsvParser {
                 resourcesById.getOrPut(resourceId) {
                     Resource(id = resourceId, name = assigneeName, role = Role.DEVELOPER)
                 }
-
-                val startDate = mapping.startDate?.let { parseDate(record.get(it).trim(), rowIndex + 2, "startDate", warnings) }
-                val endDate = mapping.endDate?.let { parseDate(record.get(it).trim(), rowIndex + 2, "endDate", warnings) }
-
-                if (startDate != null && endDate != null) {
-                    if (startDate <= endDate) {
-                        allocations += Allocation(
-                            taskId = taskId,
-                            resourceId = resourceId,
-                            startDate = startDate,
-                            endDate = endDate,
-                        )
-                    } else {
-                        warnings += "Row ${rowIndex + 2}: startDate is after endDate for task '$taskId', allocation skipped"
-                    }
-                }
             }
         }
 
         return ImportCsvResponse(
             tasks = tasks,
             resources = resourcesById.values.toList(),
-            allocations = allocations,
+            allocations = emptyList(),
             warnings = warnings,
         )
-    }
-
-    private fun parseDate(raw: String, row: Int, field: String, warnings: MutableList<String>): LocalDate? {
-        if (raw.isBlank()) return null
-        return try {
-            LocalDate.parse(raw, dateFormatter)
-        } catch (_: DateTimeParseException) {
-            try {
-                LocalDateTime.parse(raw, altDateFormatter).toLocalDate()
-            } catch (_: DateTimeParseException) {
-                warnings += "Row $row: cannot parse $field '$raw' (expected yyyy-MM-dd or dd/MMM/yy HH:mm), skipping"
-                null
-            }
-        }
     }
 
     private fun parseTaskType(raw: String, row: Int, warnings: MutableList<String>): TaskType {
@@ -126,6 +86,7 @@ class CsvParser {
             "story" -> TaskType.STORY
             "feature" -> TaskType.FEATURE
             "featureenabler", "enabler" -> TaskType.FEATURE_ENABLER
+            "rnd", "r&d", "rd" -> TaskType.RND
             else -> {
                 warnings += "Row $row: unknown task type '$raw', defaulting to STORY"
                 TaskType.STORY

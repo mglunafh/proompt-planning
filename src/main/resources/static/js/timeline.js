@@ -89,7 +89,7 @@ const Timeline = (() => {
 
   // ── Public entry point ──────────────────
   function render(state) {
-    if (!state.allocations.length) {
+    if (!state.tasks.length && !state.resources.length) {
       renderEmpty();
       return;
     }
@@ -111,8 +111,16 @@ const Timeline = (() => {
       ...state.allocations.flatMap(a => [a.startDate, a.endDate]),
       ...state.vacations.flatMap(v => [v.startDate, v.endDate]),
     ];
-    const start = parseDate(dates.reduce((a, b) => (a < b ? a : b)));
-    const end = parseDate(dates.reduce((a, b) => (a > b ? a : b)));
+    let start, end;
+    if (dates.length) {
+      start = parseDate(dates.reduce((a, b) => (a < b ? a : b)));
+      end   = parseDate(dates.reduce((a, b) => (a > b ? a : b)));
+    } else {
+      // No allocations yet — show a default window around today
+      start = new Date();
+      end   = new Date();
+      end.setDate(end.getDate() + 30);
+    }
     // pad by a few days/weeks for visual breathing room
     start.setDate(start.getDate() - 2);
     end.setDate(end.getDate() + 7);
@@ -434,7 +442,7 @@ const Timeline = (() => {
       frag.appendChild(groupHeader);
 
       const parents  = tasks.filter(t => t.type === 'FEATURE' || t.type === 'FEATURE_ENABLER');
-      const stories  = tasks.filter(t => t.type === 'STORY');
+      const stories  = tasks.filter(t => t.type === 'STORY' || t.type === 'RND');
       const parentIds = new Set(parents.map(p => p.id));
 
       // Map parentId → child stories; collect orphans separately

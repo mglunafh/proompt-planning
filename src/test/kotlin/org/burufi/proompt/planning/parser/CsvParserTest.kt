@@ -42,7 +42,7 @@ class CsvParserTest {
     }
 
     @Test
-    fun `full jira csv parses tasks resources and allocations`() {
+    fun `full jira csv parses tasks and resources`() {
         val result = parser.parse(
             csv(
                 "Issue key,Summary,Project name,Status,Assignee,Start date,End date",
@@ -54,9 +54,7 @@ class CsvParserTest {
         assertEquals("In Progress", result.tasks[0].status)
         assertEquals(1, result.resources.size)
         assertEquals("Alice Smith", result.resources[0].name)
-        assertEquals(1, result.allocations.size)
-        assertEquals("2025-05-01", result.allocations[0].startDate.toString())
-        assertEquals("2025-05-15", result.allocations[0].endDate.toString())
+        assertTrue(result.allocations.isEmpty())
     }
 
     @Test
@@ -86,7 +84,7 @@ class CsvParserTest {
     }
 
     @Test
-    fun `invalid date format produces warning and no allocation`() {
+    fun `assignee with date columns still parses task and resource`() {
         val result = parser.parse(
             csv(
                 "Issue key,Summary,Assignee,Start date,End date",
@@ -94,8 +92,8 @@ class CsvParserTest {
             ).inputStream(),
         )
         assertEquals(1, result.tasks.size)
+        assertEquals(1, result.resources.size)
         assertTrue(result.allocations.isEmpty())
-        assertTrue(result.warnings.any { it.contains("cannot parse") })
     }
 
     @Test
@@ -119,7 +117,7 @@ class CsvParserTest {
             ).inputStream(),
         )
         assertEquals(1, result.resources.size)
-        assertEquals(2, result.allocations.size)
+        assertTrue(result.allocations.isEmpty())
     }
 
     @Test
