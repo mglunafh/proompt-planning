@@ -5,11 +5,14 @@ import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
-class ExportService {
+class ExportService(private val planSaveService: PlanSaveService) {
 
-    fun export(snapshot: Snapshot): Snapshot =
-        snapshot.copy(
+    fun export(snapshot: Snapshot): Snapshot {
+        val enriched = snapshot.copy(
             version = "1.0.${System.currentTimeMillis()}",
             generatedAt = Instant.now(),
         )
+        planSaveService.save(enriched)
+        return enriched
+    }
 }

@@ -71,34 +71,11 @@
       vacations: state.vacations,
     };
     try {
-      const exported = await API.exportSnapshot(snapshot);
-      const json = JSON.stringify(exported, null, 2);
-      await saveFile(json, 'workload-plan.json');
+      await API.exportSnapshot(snapshot);
     } catch (err) {
-      if (err.name !== 'AbortError') showError('Export failed: ' + err.message);
+      showError('Export failed: ' + err.message);
     }
   });
-
-  async function saveFile(content, suggestedName) {
-    if (window.showSaveFilePicker) {
-      const handle = await window.showSaveFilePicker({
-        suggestedName,
-        types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-    } else {
-      // Fallback for Firefox / Safari
-      const blob = new Blob([content], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = suggestedName;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  }
 
   // ── Helpers ──────────────────────────────
   function showWarnings(warnings) {
