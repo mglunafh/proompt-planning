@@ -26,6 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyTaskHighlight(taskId)         { applyBlockHighlight('taskId', taskId); }
   function applyResourceHighlight(resourceId) { applyBlockHighlight('resourceId', resourceId); }
 
+  function applyTaskGroupHighlight(taskIdSet) {
+    timelineBody.querySelectorAll('.block[data-task-id]').forEach(b => {
+      b.classList.toggle('block--related', taskIdSet.has(b.dataset.taskId));
+    });
+    timelineBody.querySelectorAll('.block--vacation').forEach(b => b.classList.remove('block--related'));
+    timelineBody.classList.toggle('has-selection', taskIdSet.size > 0);
+  }
+
   function applyVacationHighlight(resourceId) {
     timelineBody.querySelectorAll('.block[data-task-id]').forEach(b => b.classList.remove('block--related'));
     timelineBody.querySelectorAll('.block--vacation').forEach(b => {
@@ -97,6 +105,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Delegated: hover highlight ────────────
   timelineBody.addEventListener('mouseover', (e) => {
+    const taskLabel = e.target.closest('.row-label[data-task-id]');
+    if (taskLabel) {
+      if (!selectedTaskId) {
+        const taskId = taskLabel.dataset.taskId;
+        const state = State.get();
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task?.type === 'FEATURE' || task?.type === 'FEATURE_ENABLER') {
+          const ids = new Set([taskId, ...state.tasks.filter(t => t.parentId === taskId).map(t => t.id)]);
+          applyTaskGroupHighlight(ids);
+        } else {
+          applyTaskHighlight(taskId);
+        }
+      }
+      return;
+    }
+    const resourceLabel = e.target.closest('.row-label[data-resource-id]');
+    if (resourceLabel) {
+      if (!selectedResourceId) applyResourceHighlight(resourceLabel.dataset.resourceId);
+      return;
+    }
+
     const vacBlock = e.target.closest('.block--vacation[data-resource-id]');
     if (vacBlock) {
       Tooltip.show(e, Tooltip.buildVacationView({
@@ -130,6 +159,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   timelineBody.addEventListener('mouseout', (e) => {
+    const taskLabel = e.target.closest('.row-label[data-task-id]');
+    if (taskLabel) {
+      const stillInRow = e.relatedTarget?.closest('.timeline-row') === taskLabel.closest('.timeline-row');
+      if (!stillInRow && !selectedTaskId) applyTaskGroupHighlight(new Set());
+      return;
+    }
+    const resourceLabel = e.target.closest('.row-label[data-resource-id]');
+    if (resourceLabel) {
+      const stillInRow = e.relatedTarget?.closest('.timeline-row') === resourceLabel.closest('.timeline-row');
+      if (!stillInRow && !selectedResourceId) applyResourceHighlight(null);
+      return;
+    }
+
     const vacBlock = e.target.closest('.block--vacation[data-resource-id]');
     if (vacBlock) {
       const relatedVac = e.relatedTarget?.closest('.block--vacation[data-resource-id]');
