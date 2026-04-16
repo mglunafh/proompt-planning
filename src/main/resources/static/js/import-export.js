@@ -13,6 +13,7 @@
         resources: result.resources,
         allocations: result.allocations,
         vacations: [],
+        workSegments: [],
       });
       if (result.warnings.length > 0) showWarnings(result.warnings);
     } catch (err) {
@@ -53,6 +54,7 @@
         resources: normalized.resources,
         allocations: normalized.allocations,
         vacations: normalized.vacations,
+        workSegments: normalized.workSegments ?? [],
       });
     } catch (err) {
       showError('JSON import failed: ' + err.message);
@@ -80,6 +82,7 @@
       resources: state.resources,
       allocations: state.allocations,
       vacations: state.vacations,
+      workSegments: state.workSegments ?? [],
     };
     try {
       const exported = await API.exportSnapshot(snapshot, fileHandle.name);

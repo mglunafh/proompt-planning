@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedResourceId = null; // task view — allocation selection
   let selectedAlloc      = null; // { taskId, resourceId, startDate, endDate }
   let selectedVacation   = null; // { resourceId, startDate, endDate, type }
+  let selectedSegmentId  = null; // work-planning view — segment selection
 
   // ── Highlight helpers ─────────────────────
   function applyBlockHighlight(attr, value) {
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function deselect() {
     selectedTaskId = selectedResourceId = null;
     selectedAlloc  = selectedVacation   = null;
+    selectedSegmentId = null;
     timelineBody.querySelectorAll('.block--related').forEach(b => b.classList.remove('block--related'));
     timelineBody.classList.remove('has-selection');
   }
@@ -79,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedVacation) {
       applyVacationHighlight(selectedVacation.resourceId);
     } else if (state.viewMode === 'resource') {
+      applyTaskHighlight(selectedTaskId);
+    } else if (state.viewMode === 'work-planning') {
       applyTaskHighlight(selectedTaskId);
     } else {
       applyResourceHighlight(selectedResourceId);
@@ -149,6 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const alloc = state.allocations[allocIndex];
       Tooltip.show(e, Tooltip.buildResourceView(task, alloc));
       if (!selectedTaskId) applyTaskHighlight(block.dataset.taskId);
+    } else if (state.viewMode === 'work-planning') {
+      if (!selectedTaskId) applyTaskHighlight(block.dataset.taskId);
     } else {
       const allocIndex = parseInt(block.dataset.allocIndex, 10);
       const alloc = state.allocations[allocIndex];
@@ -188,8 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Tooltip.hide();
     const relatedBlock = e.relatedTarget?.closest('.block[data-task-id]');
     if (!relatedBlock) {
-      if (State.get().viewMode === 'resource') applyTaskHighlight(selectedTaskId);
-      else                                     applyResourceHighlight(selectedResourceId);
+      const vm = State.get().viewMode;
+      if (vm === 'resource' || vm === 'work-planning') applyTaskHighlight(selectedTaskId);
+      else                                              applyResourceHighlight(selectedResourceId);
     }
   });
 
@@ -214,6 +221,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resourceLabel && !e.target.closest('.role-badge')) {
       deselect();
       openResourceSidebar(resourceLabel.dataset.resourceId, state);
+      return;
+    }
+
+    // Work planning view: segment block or task row label click
+    if (state.viewMode === 'work-planning') {
+      const source = block || taskLabel;
+      if (!source) { deselect(); return; }
+      const taskId = source.dataset.taskId;
+      selectedVacation   = null;
+      selectedResourceId = null;
+      selectedAlloc      = null;
+      selectedSegmentId  = block?.dataset.segmentId ?? null;
+      selectedTaskId     = taskId;
+      applyTaskHighlight(taskId);
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+        const segs = (state.workSegments ?? []).filter(s => s.taskId === taskId)
+          .sort((a, b) => a.startDate.localeCompare(b.startDate));
+        SidePanel.openWorkPlanningTask({ task, workSegments: segs });
+      }
       return;
     }
 
@@ -267,8 +294,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const block = e.target.closest('.block[data-task-id]');
     if (block) {
-      const alloc = resolveAlloc(block, State.get());
-      if (alloc) SidePanel.openEditAllocationDialog(alloc);
+      if (block.dataset.segmentId) {
+        const seg = State.get().workSegments.find(s => s.id === block.dataset.segmentId);
+        if (seg) SidePanel.openEditWorkSegmentDialog(seg);
+      } else {
+        const alloc = resolveAlloc(block, State.get());
+        if (alloc) SidePanel.openEditAllocationDialog(alloc);
+      }
       return;
     }
 
@@ -292,6 +324,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const taskLabel = row.querySelector('.row-label[data-task-id]');
       if (!taskLabel) return;
       SidePanel.openAddAllocationDialog({ taskId: taskLabel.dataset.taskId }, startDate);
+    } else if (state.viewMode === 'work-planning') {
+      const taskLabel = row.querySelector('.row-label[data-task-id]');
+      if (!taskLabel) return;
+      const task = state.tasks.find(t => t.id === taskLabel.dataset.taskId);
+      if (!task) return;
+      const segs = (state.workSegments ?? []).filter(s => s.taskId === task.id)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate));
+      SidePanel.openWorkPlanningTask({ task, workSegments: segs });
     }
   });
 
@@ -330,6 +370,8 @@ document.addEventListener('DOMContentLoaded', () => {
         SidePanel.promptDeleteVacation(selectedVacation.resourceId, selectedVacation.startDate, selectedVacation.endDate, selectedVacation.type);
       } else if (selectedAlloc) {
         SidePanel.promptDeleteAllocation(selectedAlloc.taskId, selectedAlloc.resourceId, selectedAlloc.startDate, selectedAlloc.endDate);
+      } else if (selectedSegmentId) {
+        SidePanel.promptDeleteWorkSegment(selectedSegmentId);
       }
     }
   });

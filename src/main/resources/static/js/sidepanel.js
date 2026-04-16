@@ -4,13 +4,14 @@ const SidePanel = (() => {
   const panel   = document.getElementById('side-panel');
   const content = document.getElementById('side-panel-content');
 
-  let openMode       = null; // 'task' | 'resource'
+  let openMode       = null; // 'task' | 'resource' | 'work-planning'
   let openTaskId     = null;
   let openResourceId = null;
 
-  let _editingAllocation = null; // full Allocation object being edited
-  let _editingVacation   = null; // full Vacation object being edited
-  let _addingAllocation  = null; // { resourceId, startDate } for new allocation dialog
+  let _editingAllocation  = null; // full Allocation object being edited
+  let _editingVacation    = null; // full Vacation object being edited
+  let _editingWorkSegment = null; // full WorkSegment object being edited
+  let _addingAllocation   = null; // { resourceId, startDate } for new allocation dialog
 
   const editDialog      = document.getElementById('edit-alloc-dialog');
   const editDialogTitle = document.getElementById('edit-dialog-title');
@@ -19,6 +20,7 @@ const SidePanel = (() => {
   document.getElementById('btn-edit-confirm').addEventListener('click', () => {
     if (_editingAllocation) confirmEditAllocation();
     else if (_editingVacation) confirmEditVacation();
+    else if (_editingWorkSegment) confirmEditWorkSegment();
     else if (_addingAllocation) confirmAddAllocationDialog();
   });
   document.getElementById('btn-edit-cancel').addEventListener('click', closeEditDialog);
@@ -35,7 +37,7 @@ const SidePanel = (() => {
   });
 
   function closeEditDialog() {
-    _editingAllocation = _editingVacation = _addingAllocation = null;
+    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = null;
     editDialog.classList.add('hidden');
   }
 
@@ -43,8 +45,9 @@ const SidePanel = (() => {
 
   State.subscribe((state) => {
     if (panel.classList.contains('hidden')) return;
-    if (openMode === 'task'     && openTaskId)     refreshTaskFromState(state, openTaskId);
-    if (openMode === 'resource' && openResourceId) refreshResourceFromState(state, openResourceId);
+    if (openMode === 'task'          && openTaskId)     refreshTaskFromState(state, openTaskId);
+    if (openMode === 'resource'      && openResourceId) refreshResourceFromState(state, openResourceId);
+    if (openMode === 'work-planning' && openTaskId)     refreshWorkPlanningFromState(state, openTaskId);
   });
 
   // ── Delegation ────────────────────────────
@@ -110,6 +113,23 @@ const SidePanel = (() => {
         if (vac) openEditVacationDialog(vac);
         break;
       }
+      case 'add-work-segment':
+        showAddWorkSegmentForm();
+        break;
+      case 'work-segment-confirm':
+        confirmAddWorkSegment();
+        break;
+      case 'work-segment-cancel':
+        refreshWorkPlanningFromState(State.get(), openTaskId);
+        break;
+      case 'delete-work-segment':
+        deleteWorkSegment(el.dataset.segmentId);
+        break;
+      case 'edit-work-segment': {
+        const seg = State.get().workSegments.find(s => s.id === el.dataset.segmentId);
+        if (seg) openEditWorkSegmentDialog(seg);
+        break;
+      }
     }
   }
 
@@ -132,6 +152,14 @@ const SidePanel = (() => {
     panel.classList.remove('hidden');
   }
 
+  function openWorkPlanningTask({ task, workSegments }) {
+    openMode       = 'work-planning';
+    openTaskId     = task.id;
+    openResourceId = null;
+    content.innerHTML = buildWorkPlanningContent(task, workSegments);
+    panel.classList.remove('hidden');
+  }
+
   function close() {
     openMode = openTaskId = openResourceId = null;
     panel.classList.add('hidden');
@@ -145,6 +173,14 @@ const SidePanel = (() => {
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const resources   = allocations.map(a => state.resources.find(r => r.id === a.resourceId)).filter(Boolean);
     content.innerHTML = buildTaskContent(task, resources, allocations);
+  }
+
+  function refreshWorkPlanningFromState(state, taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const workSegments = (state.workSegments ?? []).filter(s => s.taskId === taskId)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    content.innerHTML = buildWorkPlanningContent(task, workSegments);
   }
 
   function refreshResourceFromState(state, resourceId) {
@@ -272,6 +308,148 @@ const SidePanel = (() => {
     `.trim();
   }
 
+  // ── Work planning panel HTML ──────────────
+  function buildWorkPlanningContent(task, workSegments) {
+    const rows = workSegments.map(s => {
+      const roleLabel = ROLE_LABELS[s.role] ?? s.role;
+      const comment   = s.comment ? ` <span style="color:#94a3b8">(${Tooltip.escHtml(s.comment)})</span>` : '';
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-work-segment" data-segment-id="${Tooltip.escHtml(s.id)}" title="Remove segment">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit"   data-action="edit-work-segment"   data-segment-id="${Tooltip.escHtml(s.id)}" title="Edit segment">✎</button>`;
+      return `<tr>
+        <td><span class="alloc-resource-dot alloc-resource-dot--${s.role.toLowerCase()}"></span>${Tooltip.escHtml(s.label)}${comment}</td>
+        <td><span class="role-badge role-badge--${s.role.toLowerCase()}" style="font-size:10px">${Tooltip.escHtml(roleLabel)}</span></td>
+        <td>${s.startDate}</td><td>${s.endDate}</td>
+        <td style="width:36px;text-align:right">${editBtn}${delBtn}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="task-id">${Tooltip.escHtml(task.id)}</div>
+      <div class="panel-title">${Tooltip.escHtml(task.title)}</div>
+      ${typeField(task.type)}
+      ${field('Project', task.project)}
+      ${field('Status', task.status)}
+      ${workSegments.length > 0 ? `
+        <div class="panel-field">
+          <div class="panel-field-label">Work segments</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse">
+            <thead><tr style="color:#64748b">
+              <th style="text-align:left;padding-bottom:4px">Label</th>
+              <th style="text-align:left;padding-bottom:4px">Role</th>
+              <th style="text-align:left;padding-bottom:4px">From</th>
+              <th style="text-align:left;padding-bottom:4px">To</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>` : ''}
+      <div class="panel-field">
+        <button class="btn-add-allocation" data-action="add-work-segment">+ Add work segment</button>
+      </div>
+    `.trim();
+  }
+
+  function showAddWorkSegmentForm() {
+    const state     = State.get();
+    const existing  = (state.workSegments ?? []).filter(s => s.taskId === openTaskId);
+    const startDate = defaultStartDate(existing, state);
+    const endDate   = shiftDate(startDate, 6);
+
+    const fieldEl = content.querySelector('[data-action="add-work-segment"]')?.closest('.panel-field');
+    if (!fieldEl) return;
+    fieldEl.outerHTML = `
+      <div class="panel-field alloc-form" id="work-segment-form">
+        <div class="panel-field-label">New Work Segment</div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" placeholder="Label (e.g. Analysis)" style="margin-bottom:6px">
+        <select class="alloc-vac-type-select" data-field="seg-role">
+          ${ROLES.map(r => `<option value="${r}">${ROLE_LABELS[r]}</option>`).join('')}
+        </select>
+        <div class="alloc-date-row">
+          <input type="date" class="alloc-date-input" data-field="seg-start" value="${startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="seg-end" value="${endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment" placeholder="Comment (optional)">
+        <div class="alloc-form-actions">
+          <button class="btn-alloc-confirm" data-action="work-segment-confirm">Add</button>
+          <button class="btn-alloc-cancel"  data-action="work-segment-cancel">Cancel</button>
+        </div>
+      </div>`;
+  }
+
+  async function confirmAddWorkSegment() {
+    const label     = content.querySelector('[data-field="seg-label"]')?.value.trim();
+    const role      = content.querySelector('[data-field="seg-role"]')?.value;
+    const startDate = content.querySelector('[data-field="seg-start"]')?.value;
+    const endDate   = content.querySelector('[data-field="seg-end"]')?.value;
+    const comment   = content.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
+    if (!label || !role || !startDate || !endDate) return;
+
+    const state = State.get();
+    const newSeg = { id: crypto.randomUUID(), taskId: openTaskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newWorkSegments = [...(state.workSegments ?? []), newSeg];
+    State.set({ workSegments: newWorkSegments });
+    try {
+      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
+    } catch (err) {
+      showError('Failed to save plan: ' + err.message);
+    }
+  }
+
+  function deleteWorkSegment(segmentId) {
+    const state = State.get();
+    const seg   = (state.workSegments ?? []).find(s => s.id === segmentId);
+    const task  = state.tasks.find(t => t.id === seg?.taskId);
+    deleteDialogBody.innerHTML =
+      `<strong>${seg ? Tooltip.escHtml(seg.label) : 'Work segment'}</strong><br>` +
+      (task ? `<span style="color:#64748b;font-size:12px">${Tooltip.escHtml(task.title)}</span><br>` : '') +
+      (seg  ? `<span style="color:#64748b;font-size:12px">${seg.startDate} → ${seg.endDate}</span>` : '');
+    _pendingDelete = { _isWorkSegment: true, segmentId };
+    deleteDialog.classList.remove('hidden');
+  }
+
+  function openEditWorkSegmentDialog(seg) {
+    _editingAllocation = _editingVacation = null;
+    _editingWorkSegment = seg;
+    editDialogTitle.textContent = 'Edit Work Segment';
+    editDialogBody.innerHTML = `
+      <div class="alloc-form">
+        <div class="panel-field-label" style="margin-bottom:4px">Label</div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" value="${Tooltip.escHtml(seg.label)}" style="margin-bottom:6px">
+        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
+        <select class="alloc-vac-type-select" data-field="seg-role">
+          ${ROLES.map(r => `<option value="${r}"${r === seg.role ? ' selected' : ''}>${ROLE_LABELS[r]}</option>`).join('')}
+        </select>
+        <div class="alloc-date-row" style="margin-top:8px">
+          <input type="date" class="alloc-date-input" data-field="seg-start" value="${seg.startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="seg-end" value="${seg.endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment"
+          placeholder="Comment (optional)" value="${Tooltip.escHtml(seg.comment ?? '')}">
+      </div>`;
+    editDialog.classList.remove('hidden');
+  }
+
+  async function confirmEditWorkSegment() {
+    const orig      = _editingWorkSegment;
+    const label     = editDialogBody.querySelector('[data-field="seg-label"]')?.value.trim();
+    const role      = editDialogBody.querySelector('[data-field="seg-role"]')?.value;
+    const startDate = editDialogBody.querySelector('[data-field="seg-start"]')?.value;
+    const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
+    const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
+    if (!label || !role || !startDate || !endDate) return;
+    const state   = State.get();
+    const updated = { ...orig, label, role, startDate, endDate, ...(comment ? { comment } : { comment: undefined }) };
+    const newWorkSegments = (state.workSegments ?? []).map(s => s.id === orig.id ? updated : s);
+    closeEditDialog();
+    State.set({ workSegments: newWorkSegments });
+    try {
+      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
+    } catch (err) {
+      showError('Failed to save: ' + err.message);
+    }
+  }
+
   // ── Delete allocation ─────────────────────
   let _pendingDelete = null;
 
@@ -285,14 +463,22 @@ const SidePanel = (() => {
     deleteDialog.classList.add('hidden');
 
     const state = State.get();
-    if (pending._isVacation) {
+    if (pending._isWorkSegment) {
+      const newWorkSegments = (state.workSegments ?? []).filter(s => s.id !== pending.segmentId);
+      State.set({ workSegments: newWorkSegments });
+      try {
+        await API.savePlan(state.allocations, state.vacations, newWorkSegments);
+      } catch (err) {
+        showError('Failed to save plan: ' + err.message);
+      }
+    } else if (pending._isVacation) {
       const newVacations = state.vacations.filter(v =>
         !(v.resourceId === pending.resourceId && v.startDate === pending.startDate &&
           v.endDate === pending.endDate && v.type === pending.type)
       );
       State.set({ vacations: newVacations });
       try {
-        await API.savePlan(state.allocations, newVacations);
+        await API.savePlan(state.allocations, newVacations, state.workSegments);
       } catch (err) {
         showError('Failed to save plan: ' + err.message);
       }
@@ -304,7 +490,7 @@ const SidePanel = (() => {
       );
       State.set({ allocations: newAllocations });
       try {
-        await API.savePlan(newAllocations, state.vacations);
+        await API.savePlan(newAllocations, state.vacations, state.workSegments);
       } catch (err) {
         showError('Failed to save plan: ' + err.message);
       }
@@ -412,7 +598,7 @@ const SidePanel = (() => {
     const newVacations = [...state.vacations, newVacation];
     State.set({ vacations: newVacations });
     try {
-      await API.savePlan(state.allocations, newVacations);
+      await API.savePlan(state.allocations, newVacations, state.workSegments);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
     }
@@ -500,7 +686,7 @@ const SidePanel = (() => {
     State.set({ allocations: newAllocations });
 
     try {
-      await API.savePlan(newAllocations, state.vacations);
+      await API.savePlan(newAllocations, state.vacations, state.workSegments);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
     }
@@ -562,7 +748,7 @@ const SidePanel = (() => {
     closeEditDialog();
     State.set({ allocations: newAllocations });
     try {
-      await API.savePlan(newAllocations, state.vacations);
+      await API.savePlan(newAllocations, state.vacations, state.workSegments);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
     }
@@ -649,7 +835,7 @@ const SidePanel = (() => {
     closeEditDialog();
     State.set({ allocations: newAllocations });
     try {
-      await API.savePlan(newAllocations, state.vacations);
+      await API.savePlan(newAllocations, state.vacations, state.workSegments);
     } catch (err) {
       showError('Failed to save: ' + err.message);
     }
@@ -671,7 +857,7 @@ const SidePanel = (() => {
     closeEditDialog();
     State.set({ vacations: newVacations });
     try {
-      await API.savePlan(state.allocations, newVacations);
+      await API.savePlan(state.allocations, newVacations, state.workSegments);
     } catch (err) {
       showError('Failed to save: ' + err.message);
     }
@@ -725,5 +911,5 @@ const SidePanel = (() => {
     showAddResourceAllocationForm(startDate);
   }
 
-  return { open: openTask, openTask, openResource, openResourceAndShowAllocForm, openAddAllocationDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError, openEditAllocationDialog, openEditVacationDialog, closeEditDialog };
+  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
 })();

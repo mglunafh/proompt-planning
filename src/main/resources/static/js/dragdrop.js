@@ -22,6 +22,26 @@ const DragDrop = (() => {
         ],
       });
 
+    interact('.block--segment[data-seg-draggable="true"]')
+      .draggable({
+        listeners: {
+          start: onSegDragStart,
+          move: onSegDragMove,
+          end: onSegDragEnd,
+        },
+      })
+      .resizable({
+        edges: { left: '.resize-handle--left', right: '.resize-handle--right' },
+        listeners: {
+          start: onSegResizeStart,
+          move: onResizeMove,
+          end: onSegResizeEnd,
+        },
+        modifiers: [
+          interact.modifiers.restrictSize({ minWidth: COL_WIDTH.day }),
+        ],
+      });
+
     interact('.block--vacation[data-vac-draggable="true"]')
       .draggable({
         listeners: {
@@ -133,7 +153,7 @@ const DragDrop = (() => {
     State.set({ allocations: newAllocations });
 
     try {
-      await API.savePlan(newAllocations, state.vacations);
+      await API.savePlan(newAllocations, state.vacations, state.workSegments);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
     }
@@ -219,7 +239,7 @@ const DragDrop = (() => {
     State.set({ allocations: newAllocations });
 
     try {
-      await API.savePlan(newAllocations, state.vacations);
+      await API.savePlan(newAllocations, state.vacations, state.workSegments);
     } catch (err) {
       showError('Failed to save plan: ' + err.message);
     }
@@ -263,7 +283,7 @@ const DragDrop = (() => {
     });
     State.set({ vacations: newVacations });
     try {
-      await API.savePlan(state.allocations, newVacations);
+      await API.savePlan(state.allocations, newVacations, state.workSegments);
     } catch (err) { showError('Failed to save plan: ' + err.message); }
   }
 
@@ -313,7 +333,97 @@ const DragDrop = (() => {
     });
     State.set({ vacations: newVacations });
     try {
-      await API.savePlan(state.allocations, newVacations);
+      await API.savePlan(state.allocations, newVacations, state.workSegments);
+    } catch (err) { showError('Failed to save plan: ' + err.message); }
+  }
+
+  // ── Segment drag ──────────────────────────
+  function onSegDragStart(event) {
+    event.target.setAttribute('data-drag-x', '0');
+    event.target.style.zIndex = '20';
+  }
+
+  function onSegDragMove(event) {
+    const target = event.target;
+    const colWidth = COL_WIDTH[State.get().zoom];
+    const prevX = parseFloat(target.getAttribute('data-drag-x')) || 0;
+    const nextX = prevX + event.dx;
+    target.setAttribute('data-drag-x', nextX);
+    target.style.transform = `translateX(${Math.round(nextX / colWidth) * colWidth}px)`;
+  }
+
+  async function onSegDragEnd(event) {
+    const target = event.target;
+    target.style.zIndex = '';
+    const state = State.get();
+    const colWidth = COL_WIDTH[state.zoom];
+    const dx = parseFloat(target.getAttribute('data-drag-x')) || 0;
+    const daysShifted = Math.round(dx / colWidth) * (state.zoom === 'week' ? 7 : 1);
+    target.setAttribute('data-drag-x', '0');
+    target.style.transform = '';
+    if (daysShifted === 0) return;
+
+    const segId = target.dataset.segmentId;
+    const newWorkSegments = state.workSegments.map(s => {
+      if (s.id !== segId) return s;
+      return { ...s, startDate: shiftDate(s.startDate, daysShifted), endDate: shiftDate(s.endDate, daysShifted) };
+    });
+    State.set({ workSegments: newWorkSegments });
+    try {
+      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
+    } catch (err) { showError('Failed to save plan: ' + err.message); }
+  }
+
+  // ── Segment resize ────────────────────────
+  function onSegResizeStart(event) {
+    const target = event.target;
+    target.dataset.resizeInitialLeft  = target.style.left;
+    target.dataset.resizeInitialWidth = target.style.width;
+    target.dataset.resizeAccLeft  = '0';
+    target.dataset.resizeAccWidth = '0';
+    const segId = target.dataset.segmentId;
+    const seg = State.get().workSegments.find(s => s.id === segId);
+    if (seg) {
+      target.dataset.resizeOrigStart = seg.startDate;
+      target.dataset.resizeOrigEnd   = seg.endDate;
+    }
+  }
+
+  async function onSegResizeEnd(event) {
+    const target = event.target;
+    const state = State.get();
+    const colWidth = COL_WIDTH[state.zoom];
+    const daysPerUnit = state.zoom === 'week' ? 7 : 1;
+
+    const origStart    = target.dataset.resizeOrigStart;
+    const origEnd      = target.dataset.resizeOrigEnd;
+    if (!origStart || !origEnd) return;
+
+    const initialLeft  = parseFloat(target.dataset.resizeInitialLeft) || 0;
+    const initialWidth = parseFloat(target.dataset.resizeInitialWidth) || 0;
+    const snappedLeft  = parseFloat(target.style.left);
+    const snappedWidth = parseFloat(target.style.width);
+
+    let newStartDate, newEndDate;
+    if (event.edges && event.edges.left) {
+      const leftDeltaDays = Math.round((snappedLeft - initialLeft) / colWidth) * daysPerUnit;
+      newStartDate = shiftDate(origStart, leftDeltaDays);
+      newEndDate   = origEnd;
+    } else {
+      const widthDeltaDays = Math.round((snappedWidth - initialWidth) / colWidth) * daysPerUnit;
+      newStartDate = origStart;
+      newEndDate   = shiftDate(origEnd, widthDeltaDays);
+    }
+    if (newStartDate === origStart && newEndDate === origEnd) return;
+
+    const segId = target.dataset.segmentId;
+    const newWorkSegments = state.workSegments.map(s => {
+      if (s.id !== segId) return s;
+      return { ...s, startDate: newStartDate, endDate: newEndDate };
+    });
+    State.set({ workSegments: newWorkSegments });
+    try {
+      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
     } catch (err) { showError('Failed to save plan: ' + err.message); }
   }
 

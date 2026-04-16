@@ -9,4 +9,5 @@ data class Snapshot(
     val resources: List<Resource> = emptyList(),
     val allocations: List<Allocation> = emptyList(),
     val vacations: List<Vacation> = emptyList(),
+    val workSegments: List<WorkSegment> = emptyList(),
 )

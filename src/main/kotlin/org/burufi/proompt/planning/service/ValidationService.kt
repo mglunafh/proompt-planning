@@ -5,6 +5,7 @@ import org.burufi.proompt.planning.dto.ValidationResponse
 import org.burufi.proompt.planning.model.Allocation
 import org.burufi.proompt.planning.model.Snapshot
 import org.burufi.proompt.planning.model.Vacation
+import org.burufi.proompt.planning.model.WorkSegment
 import org.springframework.stereotype.Service
 
 @Service
@@ -47,6 +48,11 @@ class ValidationService {
             issues += validateVacation(vac, i, resourceIds)
         }
 
+        // Work segment reference integrity + date ordering
+        snapshot.workSegments.forEachIndexed { i, seg ->
+            issues += validateWorkSegment(seg, i, taskIds)
+        }
+
         return ValidationResponse(
             valid = issues.none { it.severity == "ERROR" },
             issues = issues,
@@ -83,6 +89,21 @@ class ValidationService {
         }
         if (vac.startDate > vac.endDate) {
             issues += error("Vacation startDate is after endDate", "vacations[$index]")
+        }
+        return issues
+    }
+
+    private fun validateWorkSegment(
+        seg: WorkSegment,
+        index: Int,
+        taskIds: Set<String>,
+    ): List<ValidationIssue> {
+        val issues = mutableListOf<ValidationIssue>()
+        if (seg.taskId !in taskIds) {
+            issues += error("WorkSegment references unknown taskId: ${seg.taskId}", "workSegments[$index].taskId")
+        }
+        if (seg.startDate > seg.endDate) {
+            issues += error("WorkSegment startDate is after endDate", "workSegments[$index]")
         }
         return issues
     }
