@@ -9,11 +9,12 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(() => { /* holidays unavailable — render without highlights */ });
 
   // ── Selection state ───────────────────────
-  let selectedTaskId     = null; // resource view — allocation selection
-  let selectedResourceId = null; // task view — allocation selection
-  let selectedAlloc      = null; // { taskId, resourceId, startDate, endDate }
-  let selectedVacation   = null; // { resourceId, startDate, endDate, type }
-  let selectedSegmentId  = null; // work-planning view — segment selection
+  let selectedTaskId      = null; // resource/work-planning view — task selection
+  let selectedResourceId  = null; // task/resource view — resource selection
+  let selectedGroupTaskIds = null; // task/work-planning view — feature group selection
+  let selectedAlloc       = null; // { taskId, resourceId, startDate, endDate }
+  let selectedVacation    = null; // { resourceId, startDate, endDate, type }
+  let selectedSegmentId   = null; // work-planning view — segment selection
 
   // ── Highlight helpers ─────────────────────
   function applyBlockHighlight(attr, value) {
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function deselect() {
-    selectedTaskId = selectedResourceId = null;
+    selectedTaskId = selectedResourceId = selectedGroupTaskIds = null;
     selectedAlloc  = selectedVacation   = null;
     selectedSegmentId = null;
     timelineBody.querySelectorAll('.block--related').forEach(b => b.classList.remove('block--related'));
@@ -81,11 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedVacation) {
       applyVacationHighlight(selectedVacation.resourceId);
     } else if (state.viewMode === 'resource') {
-      applyTaskHighlight(selectedTaskId);
+      if (selectedResourceId) applyResourceHighlight(selectedResourceId);
+      else applyTaskHighlight(selectedTaskId);
     } else if (state.viewMode === 'work-planning') {
-      applyTaskHighlight(selectedTaskId);
-    } else {
-      applyResourceHighlight(selectedResourceId);
+      if (selectedGroupTaskIds) applyTaskGroupHighlight(selectedGroupTaskIds);
+      else applyTaskHighlight(selectedTaskId);
+    } else { // task view
+      if (selectedGroupTaskIds) applyTaskGroupHighlight(selectedGroupTaskIds);
+      else if (selectedTaskId) applyTaskHighlight(selectedTaskId);
+      else applyResourceHighlight(selectedResourceId);
     }
   });
 
@@ -111,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
   timelineBody.addEventListener('mouseover', (e) => {
     const taskLabel = e.target.closest('.row-label[data-task-id]');
     if (taskLabel) {
-      if (!selectedTaskId) {
+      if (!selectedTaskId && !selectedGroupTaskIds) {
         const taskId = taskLabel.dataset.taskId;
         const state = State.get();
         const task = state.tasks.find(t => t.id === taskId);
@@ -154,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Tooltip.show(e, Tooltip.buildResourceView(task, alloc));
       if (!selectedTaskId) applyTaskHighlight(block.dataset.taskId);
     } else if (state.viewMode === 'work-planning') {
-      if (!selectedTaskId) applyTaskHighlight(block.dataset.taskId);
+      if (!selectedTaskId && !selectedGroupTaskIds) applyTaskHighlight(block.dataset.taskId);
     } else {
       const allocIndex = parseInt(block.dataset.allocIndex, 10);
       const alloc = state.allocations[allocIndex];
@@ -168,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskLabel = e.target.closest('.row-label[data-task-id]');
     if (taskLabel) {
       const stillInRow = e.relatedTarget?.closest('.timeline-row') === taskLabel.closest('.timeline-row');
-      if (!stillInRow && !selectedTaskId) applyTaskGroupHighlight(new Set());
+      if (!stillInRow && !selectedTaskId && !selectedGroupTaskIds) applyTaskGroupHighlight(new Set());
       return;
     }
     const resourceLabel = e.target.closest('.row-label[data-resource-id]');
@@ -195,8 +200,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const relatedBlock = e.relatedTarget?.closest('.block[data-task-id]');
     if (!relatedBlock) {
       const vm = State.get().viewMode;
-      if (vm === 'resource' || vm === 'work-planning') applyTaskHighlight(selectedTaskId);
-      else                                              applyResourceHighlight(selectedResourceId);
+      if (vm === 'work-planning') {
+        if (selectedGroupTaskIds) applyTaskGroupHighlight(selectedGroupTaskIds);
+        else applyTaskHighlight(selectedTaskId);
+      } else if (vm === 'resource') {
+        applyTaskHighlight(selectedTaskId);
+      } else {
+        if (selectedGroupTaskIds) applyTaskGroupHighlight(selectedGroupTaskIds);
+        else applyResourceHighlight(selectedResourceId);
+      }
     }
   });
 
@@ -217,10 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const resourceLabel = e.target.closest('.row-label[data-resource-id]');
     const state         = State.get();
 
-    // Resource row label → drop selection + open resource sidebar
+    // Resource row label → persist resource highlight + open resource sidebar
     if (resourceLabel && !e.target.closest('.role-badge')) {
-      deselect();
-      openResourceSidebar(resourceLabel.dataset.resourceId, state);
+      selectedTaskId = selectedAlloc = selectedVacation = selectedGroupTaskIds = null;
+      selectedResourceId = resourceLabel.dataset.resourceId;
+      applyResourceHighlight(selectedResourceId);
+      openResourceSidebar(selectedResourceId, state);
       return;
     }
 
@@ -233,9 +247,17 @@ document.addEventListener('DOMContentLoaded', () => {
       selectedResourceId = null;
       selectedAlloc      = null;
       selectedSegmentId  = block?.dataset.segmentId ?? null;
-      selectedTaskId     = taskId;
-      applyTaskHighlight(taskId);
       const task = state.tasks.find(t => t.id === taskId);
+      if (task?.type === 'FEATURE' || task?.type === 'FEATURE_ENABLER') {
+        const ids = new Set([taskId, ...state.tasks.filter(t => t.parentId === taskId).map(t => t.id)]);
+        selectedGroupTaskIds = ids;
+        selectedTaskId = null;
+        applyTaskGroupHighlight(ids);
+      } else {
+        selectedGroupTaskIds = null;
+        selectedTaskId = taskId;
+        applyTaskHighlight(taskId);
+      }
       if (task) {
         const segs = (state.workSegments ?? []).filter(s => s.taskId === taskId)
           .sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -266,12 +288,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (state.viewMode === 'resource' && block) {
       selectedVacation = null;
+      selectedGroupTaskIds = null;
       selectedTaskId   = task.id;
       selectedAlloc    = resolveAlloc(block, state);
       applyTaskHighlight(selectedTaskId);
     } else if (state.viewMode === 'task' && taskLabel) {
-      selectedVacation = selectedResourceId = selectedAlloc = null;
-      applyResourceHighlight(null);
+      selectedVacation = selectedAlloc = selectedResourceId = null;
+      if (task.type === 'FEATURE' || task.type === 'FEATURE_ENABLER') {
+        const ids = new Set([task.id, ...state.tasks.filter(t => t.parentId === task.id).map(t => t.id)]);
+        selectedGroupTaskIds = ids;
+        selectedTaskId = null;
+        applyTaskGroupHighlight(ids);
+      } else {
+        selectedGroupTaskIds = null;
+        selectedTaskId = task.id;
+        applyTaskHighlight(task.id);
+      }
     }
 
     const allocations = state.allocations.filter(a => a.taskId === task.id)
@@ -327,11 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (state.viewMode === 'work-planning') {
       const taskLabel = row.querySelector('.row-label[data-task-id]');
       if (!taskLabel) return;
-      const task = state.tasks.find(t => t.id === taskLabel.dataset.taskId);
-      if (!task) return;
-      const segs = (state.workSegments ?? []).filter(s => s.taskId === task.id)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate));
-      SidePanel.openWorkPlanningTask({ task, workSegments: segs });
+      SidePanel.openAddWorkSegmentDialog(taskLabel.dataset.taskId, startDate);
     }
   });
 

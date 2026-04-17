@@ -633,7 +633,8 @@ body {
 .alloc-select-list.hidden { display: none; }
 
 .alloc-resource-option,
-.alloc-task-option {
+.alloc-task-option,
+.alloc-role-option {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -647,7 +648,8 @@ body {
   text-align: left;
 }
 .alloc-resource-option:hover,
-.alloc-task-option:hover { background: #f1f5f9; }
+.alloc-task-option:hover,
+.alloc-role-option:hover { background: #f1f5f9; }
 
 .alloc-date-row {
   display: flex;

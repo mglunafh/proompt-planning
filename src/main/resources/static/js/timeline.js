@@ -538,6 +538,47 @@ const Timeline = (() => {
   }
 
   // ── Work planning view ───────────────────
+  const collapsedWorkPlanningFeatures = new Set();
+
+  function buildWorkPlanningRow(task, isChild, segsByTask, state, range, holidaySet) {
+    const row = createRow();
+    row.dataset.taskId = task.id;
+
+    const label = createLabel();
+    label.classList.add('row-label--' + taskTypeCssClass(task.type));
+    if (isChild) label.classList.add('row-label--child');
+    label.dataset.taskId = task.id;
+    label.style.cursor = 'pointer';
+
+    const text = document.createElement('span');
+    text.className = 'row-label-text';
+    const idChip = document.createElement('span');
+    idChip.className = 'task-id';
+    idChip.textContent = task.id;
+    text.appendChild(idChip);
+    text.appendChild(document.createTextNode(task.title));
+    label.appendChild(text);
+
+    const content = document.createElement('div');
+    content.className = 'row-content';
+    content.style.width = contentWidth(range, state.zoom) + 'px';
+    if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
+    else addWeekBorders(content, range);
+
+    const segs = segsByTask.get(task.id) ?? [];
+    const laned = assignLanes(segs, 'startDate', 'endDate');
+    const laneCount = laned.length > 0 ? Math.max(...laned.map(x => x.lane)) + 1 : 1;
+    if (laneCount > 1) row.style.height = (ROW_HEIGHT * laneCount) + 'px';
+
+    for (const { item: seg, lane } of laned) {
+      content.appendChild(createSegmentBlock(seg, range, state.zoom, lane));
+    }
+
+    row.appendChild(label);
+    row.appendChild(content);
+    return { row, label };
+  }
+
   function renderWorkPlanningView(frag, state, range, holidaySet) {
     const segsByTask = new Map();
     for (const seg of (state.workSegments ?? [])) {
@@ -556,42 +597,51 @@ const Timeline = (() => {
       groupHeader.appendChild(groupLabel);
       frag.appendChild(groupHeader);
 
-      for (const task of tasks) {
-        const row = createRow();
-        row.dataset.taskId = task.id;
+      const parents  = tasks.filter(t => t.type === 'FEATURE' || t.type === 'FEATURE_ENABLER');
+      const stories  = tasks.filter(t => t.type === 'STORY' || t.type === 'RND');
+      const parentIds = new Set(parents.map(p => p.id));
 
-        const label = createLabel();
-        label.classList.add('row-label--' + taskTypeCssClass(task.type));
-        label.dataset.taskId = task.id;
-        label.style.cursor = 'pointer';
+      const childrenOf = new Map();
+      const orphans    = [];
+      for (const story of stories) {
+        if (story.parentId && parentIds.has(story.parentId)) {
+          if (!childrenOf.has(story.parentId)) childrenOf.set(story.parentId, []);
+          childrenOf.get(story.parentId).push(story);
+        } else {
+          orphans.push(story);
+        }
+      }
 
-        const text = document.createElement('span');
-        text.className = 'row-label-text';
-        const idChip = document.createElement('span');
-        idChip.className = 'task-id';
-        idChip.textContent = task.id;
-        text.appendChild(idChip);
-        text.appendChild(document.createTextNode(task.title));
-        label.appendChild(text);
+      for (const parent of parents) {
+        const children    = childrenOf.get(parent.id) ?? [];
+        const isCollapsed = collapsedWorkPlanningFeatures.has(parent.id);
 
-        const content = document.createElement('div');
-        content.className = 'row-content';
-        content.style.width = contentWidth(range, state.zoom) + 'px';
-        if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
-        else addWeekBorders(content, range);
+        const { row, label } = buildWorkPlanningRow(parent, false, segsByTask, state, range, holidaySet);
 
-        const segs = segsByTask.get(task.id) ?? [];
-        const laned = assignLanes(segs, 'startDate', 'endDate');
-        const laneCount = laned.length > 0 ? Math.max(...laned.map(x => x.lane)) + 1 : 1;
-        if (laneCount > 1) row.style.height = (ROW_HEIGHT * laneCount) + 'px';
-
-        for (const { item: seg, lane } of laned) {
-          content.appendChild(createSegmentBlock(seg, range, state.zoom, lane));
+        if (children.length > 0) {
+          const toggle = document.createElement('button');
+          toggle.className   = 'feature-collapse-toggle';
+          toggle.textContent = isCollapsed ? '▶' : '▼';
+          toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (collapsedWorkPlanningFeatures.has(parent.id)) collapsedWorkPlanningFeatures.delete(parent.id);
+            else                                               collapsedWorkPlanningFeatures.add(parent.id);
+            render(State.get());
+          });
+          label.insertBefore(toggle, label.firstChild);
         }
 
-        row.appendChild(label);
-        row.appendChild(content);
         frag.appendChild(row);
+
+        if (!isCollapsed) {
+          for (const child of children) {
+            frag.appendChild(buildWorkPlanningRow(child, true, segsByTask, state, range, holidaySet).row);
+          }
+        }
+      }
+
+      for (const story of orphans) {
+        frag.appendChild(buildWorkPlanningRow(story, false, segsByTask, state, range, holidaySet).row);
       }
     }
   }

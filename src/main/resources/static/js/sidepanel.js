@@ -12,6 +12,7 @@ const SidePanel = (() => {
   let _editingVacation    = null; // full Vacation object being edited
   let _editingWorkSegment = null; // full WorkSegment object being edited
   let _addingAllocation   = null; // { resourceId, startDate } for new allocation dialog
+  let _addingWorkSegment  = null; // truthy when add-work-segment modal is open
 
   const editDialog      = document.getElementById('edit-alloc-dialog');
   const editDialogTitle = document.getElementById('edit-dialog-title');
@@ -22,22 +23,26 @@ const SidePanel = (() => {
     else if (_editingVacation) confirmEditVacation();
     else if (_editingWorkSegment) confirmEditWorkSegment();
     else if (_addingAllocation) confirmAddAllocationDialog();
+    else if (_addingWorkSegment) confirmAddWorkSegmentDialog();
   });
   document.getElementById('btn-edit-cancel').addEventListener('click', closeEditDialog);
   editDialog.addEventListener('click', (e) => { if (e.target === editDialog) closeEditDialog(); });
 
   editDialogBody.addEventListener('click', (e) => {
     const actionEl = e.target.closest('[data-action]');
-    if (actionEl && (actionEl.dataset.action === 'toggle-resource-dropdown' || actionEl.dataset.action === 'toggle-task-dropdown')) {
-      actionEl.closest('.alloc-custom-select')?.querySelector('.alloc-select-list')?.classList.toggle('hidden');
+    if (actionEl && (['toggle-resource-dropdown', 'toggle-task-dropdown', 'toggle-role-dropdown'].includes(actionEl.dataset.action))) {
+      const thisSelect = actionEl.closest('.alloc-custom-select');
+      const thisList   = thisSelect?.querySelector('.alloc-select-list');
+      editDialogBody.querySelectorAll('.alloc-select-list').forEach(l => { if (l !== thisList) l.classList.add('hidden'); });
+      thisList?.classList.toggle('hidden');
       return;
     }
-    const option = e.target.closest('.alloc-resource-option, .alloc-task-option');
+    const option = e.target.closest('.alloc-resource-option, .alloc-task-option, .alloc-role-option');
     if (option) selectOptionIn(editDialogBody, option);
   });
 
   function closeEditDialog() {
-    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = null;
+    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = _addingWorkSegment = null;
     editDialog.classList.add('hidden');
   }
 
@@ -54,7 +59,7 @@ const SidePanel = (() => {
   content.addEventListener('click', (e) => {
     const actionEl = e.target.closest('[data-action]');
     if (actionEl) { handleAction(actionEl); return; }
-    const option = e.target.closest('.alloc-resource-option, .alloc-task-option');
+    const option = e.target.closest('.alloc-resource-option, .alloc-task-option, .alloc-role-option');
     if (option) selectOption(option);
   });
 
@@ -74,6 +79,7 @@ const SidePanel = (() => {
         break;
       case 'toggle-resource-dropdown':
       case 'toggle-task-dropdown':
+      case 'toggle-role-dropdown':
         toggleDropdown();
         break;
       case 'alloc-confirm':
@@ -360,9 +366,7 @@ const SidePanel = (() => {
       <div class="panel-field alloc-form" id="work-segment-form">
         <div class="panel-field-label">New Work Segment</div>
         <input type="text" class="alloc-vac-comment-input" data-field="seg-label" placeholder="Label (e.g. Analysis)" style="margin-bottom:6px">
-        <select class="alloc-vac-type-select" data-field="seg-role">
-          ${ROLES.map(r => `<option value="${r}">${ROLE_LABELS[r]}</option>`).join('')}
-        </select>
+        ${buildRoleCustomSelectHtml(ROLES[0])}
         <div class="alloc-date-row">
           <input type="date" class="alloc-date-input" data-field="seg-start" value="${startDate}">
           <span class="alloc-date-sep">→</span>
@@ -378,7 +382,7 @@ const SidePanel = (() => {
 
   async function confirmAddWorkSegment() {
     const label     = content.querySelector('[data-field="seg-label"]')?.value.trim();
-    const role      = content.querySelector('[data-field="seg-role"]')?.value;
+    const role      = content.querySelector('.alloc-custom-select')?.dataset.selectedValue;
     const startDate = content.querySelector('[data-field="seg-start"]')?.value;
     const endDate   = content.querySelector('[data-field="seg-end"]')?.value;
     const comment   = content.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
@@ -408,17 +412,27 @@ const SidePanel = (() => {
   }
 
   function openEditWorkSegmentDialog(seg) {
-    _editingAllocation = _editingVacation = null;
+    _editingAllocation = _editingVacation = _addingWorkSegment = null;
     _editingWorkSegment = seg;
     editDialogTitle.textContent = 'Edit Work Segment';
+    const state = State.get();
+    const sortedTasks = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const taskOptions = sortedTasks.map(t => `
+      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
+        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
+        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
+        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
+    const selTask  = state.tasks.find(t => t.id === seg.taskId);
+    const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
+    const taskName = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : Tooltip.escHtml(seg.taskId);
     editDialogBody.innerHTML = `
       <div class="alloc-form">
-        <div class="panel-field-label" style="margin-bottom:4px">Label</div>
+        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
+        ${buildCustomSelectHtml(seg.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
+        <div class="panel-field-label" style="margin:8px 0 4px">Label</div>
         <input type="text" class="alloc-vac-comment-input" data-field="seg-label" value="${Tooltip.escHtml(seg.label)}" style="margin-bottom:6px">
         <div class="panel-field-label" style="margin-bottom:4px">Role</div>
-        <select class="alloc-vac-type-select" data-field="seg-role">
-          ${ROLES.map(r => `<option value="${r}"${r === seg.role ? ' selected' : ''}>${ROLE_LABELS[r]}</option>`).join('')}
-        </select>
+        ${buildRoleCustomSelectHtml(seg.role)}
         <div class="alloc-date-row" style="margin-top:8px">
           <input type="date" class="alloc-date-input" data-field="seg-start" value="${seg.startDate}">
           <span class="alloc-date-sep">→</span>
@@ -432,14 +446,16 @@ const SidePanel = (() => {
 
   async function confirmEditWorkSegment() {
     const orig      = _editingWorkSegment;
+    const selects   = editDialogBody.querySelectorAll('.alloc-custom-select');
+    const taskId    = selects[0]?.dataset.selectedValue;
     const label     = editDialogBody.querySelector('[data-field="seg-label"]')?.value.trim();
-    const role      = editDialogBody.querySelector('[data-field="seg-role"]')?.value;
+    const role      = selects[1]?.dataset.selectedValue;
     const startDate = editDialogBody.querySelector('[data-field="seg-start"]')?.value;
     const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
     const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
-    if (!label || !role || !startDate || !endDate) return;
+    if (!taskId || !label || !role || !startDate || !endDate) return;
     const state   = State.get();
-    const updated = { ...orig, label, role, startDate, endDate, ...(comment ? { comment } : { comment: undefined }) };
+    const updated = { ...orig, taskId, label, role, startDate, endDate, ...(comment ? { comment } : { comment: undefined }) };
     const newWorkSegments = (state.workSegments ?? []).map(s => s.id === orig.id ? updated : s);
     closeEditDialog();
     State.set({ workSegments: newWorkSegments });
@@ -447,6 +463,60 @@ const SidePanel = (() => {
       await API.savePlan(state.allocations, state.vacations, newWorkSegments);
     } catch (err) {
       showError('Failed to save: ' + err.message);
+    }
+  }
+
+  function openAddWorkSegmentDialog(taskId, startDate) {
+    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = null;
+    _addingWorkSegment = { taskId };
+    const state = State.get();
+    const endDate = shiftDate(startDate, 6);
+    editDialogTitle.textContent = 'Add Work Segment';
+    const sortedTasks = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const taskOptions = sortedTasks.map(t => `
+      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
+        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
+        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
+        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
+    const selTask  = state.tasks.find(t => t.id === taskId);
+    const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
+    const taskName = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : (taskId ? Tooltip.escHtml(taskId) : '—');
+    editDialogBody.innerHTML = `
+      <div class="alloc-form">
+        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
+        ${buildCustomSelectHtml(taskId ?? '', taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
+        <div class="panel-field-label" style="margin:8px 0 4px">Label</div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" placeholder="Label (e.g. Analysis)" style="margin-bottom:6px">
+        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
+        ${buildRoleCustomSelectHtml(ROLES[0])}
+        <div class="alloc-date-row" style="margin-top:8px">
+          <input type="date" class="alloc-date-input" data-field="seg-start" value="${startDate}">
+          <span class="alloc-date-sep">→</span>
+          <input type="date" class="alloc-date-input" data-field="seg-end" value="${endDate}">
+        </div>
+        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment" placeholder="Comment (optional)">
+      </div>`;
+    editDialog.classList.remove('hidden');
+  }
+
+  async function confirmAddWorkSegmentDialog() {
+    const selects   = editDialogBody.querySelectorAll('.alloc-custom-select');
+    const taskId    = selects[0]?.dataset.selectedValue;
+    const role      = selects[1]?.dataset.selectedValue;
+    const label     = editDialogBody.querySelector('[data-field="seg-label"]')?.value.trim();
+    const startDate = editDialogBody.querySelector('[data-field="seg-start"]')?.value;
+    const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
+    const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
+    if (!taskId || !role || !label || !startDate || !endDate) return;
+    const state = State.get();
+    const newSeg = { id: crypto.randomUUID(), taskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newWorkSegments = [...(state.workSegments ?? []), newSeg];
+    closeEditDialog();
+    State.set({ workSegments: newWorkSegments });
+    try {
+      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
+    } catch (err) {
+      showError('Failed to save plan: ' + err.message);
     }
   }
 
@@ -635,6 +705,16 @@ const SidePanel = (() => {
       </div>`;
   }
 
+  function buildRoleCustomSelectHtml(selectedRole) {
+    const options = ROLES.map(r => `
+      <button class="alloc-role-option" data-value="${r}" data-role="${r.toLowerCase()}" data-name="${Tooltip.escHtml(ROLE_LABELS[r])}">
+        <span class="alloc-resource-dot alloc-resource-dot--${r.toLowerCase()}"></span>${Tooltip.escHtml(ROLE_LABELS[r])}
+      </button>`).join('');
+    const dot   = `<span class="alloc-resource-dot alloc-resource-dot--${selectedRole.toLowerCase()}"></span>`;
+    const label = Tooltip.escHtml(ROLE_LABELS[selectedRole] ?? selectedRole);
+    return buildCustomSelectHtml(selectedRole, dot, label, 'toggle-role-dropdown', options);
+  }
+
   function buildCustomSelectHtml(selectedId, triggerDotHtml, triggerName, toggleAction, optionItems) {
     return `
       <div class="alloc-custom-select" data-selected-value="${Tooltip.escHtml(selectedId)}">
@@ -700,7 +780,7 @@ const SidePanel = (() => {
     const endDate = shiftDate(startDate, 6);
     editDialogTitle.textContent = 'Add Allocation';
 
-    const taskOptions = state.tasks.map(t => `
+    const taskOptions = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map(t => `
       <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
         data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
         <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
@@ -761,7 +841,7 @@ const SidePanel = (() => {
     const state = State.get();
     editDialogTitle.textContent = 'Edit Allocation';
 
-    const taskOptions = state.tasks.map(t => `
+    const taskOptions = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map(t => `
       <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
         data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ' ' + t.title)}">
         <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
@@ -911,5 +991,5 @@ const SidePanel = (() => {
     showAddResourceAllocationForm(startDate);
   }
 
-  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
+  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, openAddWorkSegmentDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
 })();
