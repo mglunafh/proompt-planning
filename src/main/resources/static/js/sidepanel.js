@@ -387,16 +387,13 @@ const SidePanel = (() => {
     const endDate   = content.querySelector('[data-field="seg-end"]')?.value;
     const comment   = content.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
     if (!label || !role || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
 
     const state = State.get();
     const newSeg = { id: crypto.randomUUID(), taskId: openTaskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
     const newWorkSegments = [...(state.workSegments ?? []), newSeg];
-    State.set({ workSegments: newWorkSegments });
-    try {
-      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
-    }
+    await savePlanSafely({ workSegments: newWorkSegments });
   }
 
   function deleteWorkSegment(segmentId) {
@@ -454,15 +451,18 @@ const SidePanel = (() => {
     const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
     const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
     if (!taskId || !label || !role || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
     const state   = State.get();
     const updated = { ...orig, taskId, label, role, startDate, endDate, ...(comment ? { comment } : { comment: undefined }) };
     const newWorkSegments = (state.workSegments ?? []).map(s => s.id === orig.id ? updated : s);
+    const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
-    State.set({ workSegments: newWorkSegments });
+    if (confirmBtn) confirmBtn.disabled = true;
     try {
-      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-    } catch (err) {
-      showError('Failed to save: ' + err.message);
+      await savePlanSafely({ workSegments: newWorkSegments });
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -508,15 +508,18 @@ const SidePanel = (() => {
     const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
     const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
     if (!taskId || !role || !label || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
     const state = State.get();
     const newSeg = { id: crypto.randomUUID(), taskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
     const newWorkSegments = [...(state.workSegments ?? []), newSeg];
+    const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
-    State.set({ workSegments: newWorkSegments });
+    if (confirmBtn) confirmBtn.disabled = true;
     try {
-      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
+      await savePlanSafely({ workSegments: newWorkSegments });
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -535,35 +538,20 @@ const SidePanel = (() => {
     const state = State.get();
     if (pending._isWorkSegment) {
       const newWorkSegments = (state.workSegments ?? []).filter(s => s.id !== pending.segmentId);
-      State.set({ workSegments: newWorkSegments });
-      try {
-        await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-      } catch (err) {
-        showError('Failed to save plan: ' + err.message);
-      }
+      await savePlanSafely({ workSegments: newWorkSegments });
     } else if (pending._isVacation) {
       const newVacations = state.vacations.filter(v =>
         !(v.resourceId === pending.resourceId && v.startDate === pending.startDate &&
           v.endDate === pending.endDate && v.type === pending.type)
       );
-      State.set({ vacations: newVacations });
-      try {
-        await API.savePlan(state.allocations, newVacations, state.workSegments);
-      } catch (err) {
-        showError('Failed to save plan: ' + err.message);
-      }
+      await savePlanSafely({ vacations: newVacations });
     } else {
       const { taskId, resourceId, startDate, endDate } = pending;
       const newAllocations = state.allocations.filter(a =>
         !(a.taskId === taskId && a.resourceId === resourceId &&
           a.startDate === startDate && a.endDate === endDate)
       );
-      State.set({ allocations: newAllocations });
-      try {
-        await API.savePlan(newAllocations, state.vacations, state.workSegments);
-      } catch (err) {
-        showError('Failed to save plan: ' + err.message);
-      }
+      await savePlanSafely({ allocations: newAllocations });
     }
   });
 
@@ -662,16 +650,13 @@ const SidePanel = (() => {
     const endDate   = content.querySelector('[data-field="vac-end"]')?.value;
     const comment   = content.querySelector('[data-field="vac-comment"]')?.value.trim() || undefined;
     if (!type || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
 
     const state       = State.get();
     const newVacation = { resourceId: openResourceId, startDate, endDate, type, ...(comment ? { comment } : {}) };
     const newVacations = [...state.vacations, newVacation];
-    State.set({ vacations: newVacations });
-    try {
-      await API.savePlan(state.allocations, newVacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
-    }
+    await savePlanSafely({ vacations: newVacations });
   }
 
   function deleteVacation(resourceId, startDate, endDate, type) {
@@ -755,21 +740,17 @@ const SidePanel = (() => {
     const startDate     = content.querySelector('[data-field="start"]')?.value;
     const endDate       = content.querySelector('[data-field="end"]')?.value;
     if (!selectedValue || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
 
     const comment = content.querySelector('[data-field="comment"]')?.value.trim() || undefined;
     const state = State.get();
     const newAlloc = openMode === 'task'
-      ? { taskId: openTaskId,    resourceId: selectedValue, startDate, endDate, ...(comment ? { comment } : {}) }
-      : { taskId: selectedValue, resourceId: openResourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+      ? { id: crypto.randomUUID(), taskId: openTaskId,    resourceId: selectedValue, startDate, endDate, ...(comment ? { comment } : {}) }
+      : { id: crypto.randomUUID(), taskId: selectedValue, resourceId: openResourceId, startDate, endDate, ...(comment ? { comment } : {}) };
 
     const newAllocations = [...state.allocations, newAlloc];
-    State.set({ allocations: newAllocations });
-
-    try {
-      await API.savePlan(newAllocations, state.vacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
-    }
+    await savePlanSafely({ allocations: newAllocations });
   }
 
   // ── Add allocation dialog ────────────────
@@ -822,15 +803,18 @@ const SidePanel = (() => {
     const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
     const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
     if (!taskId || !resourceId || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
     const state          = State.get();
-    const newAlloc       = { taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newAlloc       = { id: crypto.randomUUID(), taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
     const newAllocations = [...state.allocations, newAlloc];
+    const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
-    State.set({ allocations: newAllocations });
+    if (confirmBtn) confirmBtn.disabled = true;
     try {
-      await API.savePlan(newAllocations, state.vacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
+      await savePlanSafely({ allocations: newAllocations });
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -906,18 +890,21 @@ const SidePanel = (() => {
     const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
     const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
     if (!taskId || !resourceId || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
     const state   = State.get();
-    const updated = { taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const updated = { id: orig.id, taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
     const newAllocations = state.allocations.map(a =>
       (a.taskId === orig.taskId && a.resourceId === orig.resourceId &&
        a.startDate === orig.startDate && a.endDate === orig.endDate) ? updated : a
     );
+    const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
-    State.set({ allocations: newAllocations });
+    if (confirmBtn) confirmBtn.disabled = true;
     try {
-      await API.savePlan(newAllocations, state.vacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save: ' + err.message);
+      await savePlanSafely({ allocations: newAllocations });
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -928,18 +915,21 @@ const SidePanel = (() => {
     const endDate   = editDialogBody.querySelector('[data-field="vac-end"]')?.value;
     const comment   = editDialogBody.querySelector('[data-field="vac-comment"]')?.value.trim() || undefined;
     if (!type || !startDate || !endDate) return;
+    const dateError = validateDateRange(startDate, endDate);
+    if (dateError) { showError(dateError); return; }
     const state   = State.get();
     const updated = { resourceId: orig.resourceId, startDate, endDate, type, ...(comment ? { comment } : {}) };
     const newVacations = state.vacations.map(v =>
       (v.resourceId === orig.resourceId && v.startDate === orig.startDate &&
        v.endDate === orig.endDate && v.type === orig.type) ? updated : v
     );
+    const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
-    State.set({ vacations: newVacations });
+    if (confirmBtn) confirmBtn.disabled = true;
     try {
-      await API.savePlan(state.allocations, newVacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save: ' + err.message);
+      await savePlanSafely({ vacations: newVacations });
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -963,6 +953,14 @@ const SidePanel = (() => {
     banner.textContent = msg;
     banner.classList.remove('hidden');
     setTimeout(() => banner.classList.add('hidden'), 4000);
+  }
+
+  function showSaving() {
+    document.getElementById('saving-indicator').classList.remove('hidden');
+  }
+
+  function hideSaving() {
+    document.getElementById('saving-indicator').classList.add('hidden');
   }
 
   // ── HTML field helpers ────────────────────
@@ -991,5 +989,5 @@ const SidePanel = (() => {
     showAddResourceAllocationForm(startDate);
   }
 
-  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, openAddWorkSegmentDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
+  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, openAddWorkSegmentDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, showSaving, hideSaving, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
 })();

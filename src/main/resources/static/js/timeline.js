@@ -698,6 +698,7 @@ const Timeline = (() => {
     block.setAttribute('data-task-id', task.id);
     block.setAttribute('data-resource-id', alloc.resourceId);
     block.setAttribute('data-alloc-index', allocIndex);
+    block.setAttribute('data-alloc-id', alloc.id ?? '');
     block.setAttribute('data-draggable', 'true');
 
     const handleLeft = document.createElement('div');

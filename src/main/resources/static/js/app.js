@@ -54,8 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Resolve helpers ───────────────────────
   function resolveAlloc(block, state) {
-    const allocIndex = parseInt(block.dataset.allocIndex, 10);
-    return state.allocations[allocIndex] ?? null;
+    const allocId = block.dataset.allocId;
+    return state.allocations.find(a => a.id === allocId) ?? null;
   }
 
   function resolveVacation(block) {
@@ -154,15 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!task) return;
 
     if (state.viewMode === 'resource') {
-      const allocIndex = parseInt(block.dataset.allocIndex, 10);
-      const alloc = state.allocations[allocIndex];
+      const alloc = state.allocations.find(a => a.id === block.dataset.allocId) ?? null;
       Tooltip.show(e, Tooltip.buildResourceView(task, alloc));
       if (!selectedTaskId) applyTaskHighlight(block.dataset.taskId);
     } else if (state.viewMode === 'work-planning') {
       if (!selectedTaskId && !selectedGroupTaskIds) applyTaskHighlight(block.dataset.taskId);
     } else {
-      const allocIndex = parseInt(block.dataset.allocIndex, 10);
-      const alloc = state.allocations[allocIndex];
+      const alloc = state.allocations.find(a => a.id === block.dataset.allocId) ?? null;
       const resource = alloc ? state.resources.find(r => r.id === alloc.resourceId) : null;
       Tooltip.show(e, Tooltip.buildTaskView(task, resource, alloc));
       if (!selectedResourceId) applyResourceHighlight(block.dataset.resourceId);

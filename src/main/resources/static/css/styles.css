@@ -784,6 +784,20 @@ body {
 }
 #error-banner.hidden { display: none; }
 
+#saving-indicator {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+#saving-indicator.hidden { display: none; }
+
 /* ── Modal ───────────────────────────────── */
 .modal-overlay {
   position: fixed;

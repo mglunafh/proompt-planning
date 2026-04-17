@@ -102,8 +102,8 @@ const DragDrop = (() => {
     target.setAttribute('data-drag-y', '0');
     target.style.transform = '';
 
-    const allocIndex = parseInt(target.getAttribute('data-alloc-index'), 10);
-    const alloc = state.allocations[allocIndex];
+    const allocId = target.getAttribute('data-alloc-id');
+    const alloc = state.allocations.find(a => a.id === allocId);
     if (!alloc) return;
 
     // Detect reassignment in resource view (change resource)
@@ -139,8 +139,8 @@ const DragDrop = (() => {
 
     if (daysShifted === 0 && newResourceId === alloc.resourceId && newTaskId === alloc.taskId) return;
 
-    const newAllocations = state.allocations.map((a, i) => {
-      if (i !== allocIndex) return a;
+    const newAllocations = state.allocations.map(a => {
+      if (a.id !== allocId) return a;
       return {
         ...a,
         taskId: newTaskId,
@@ -150,13 +150,7 @@ const DragDrop = (() => {
       };
     });
 
-    State.set({ allocations: newAllocations });
-
-    try {
-      await API.savePlan(newAllocations, state.vacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
-    }
+    await savePlanSafely({ allocations: newAllocations });
   }
 
   // ── Resize ────────────────────────────────
@@ -168,8 +162,8 @@ const DragDrop = (() => {
     target.dataset.resizeAccWidth = '0';
 
     // Store original dates so onResizeEnd can shift only the affected edge
-    const allocIndex = parseInt(target.getAttribute('data-alloc-index'), 10);
-    const alloc = State.get().allocations[allocIndex];
+    const allocId = target.getAttribute('data-alloc-id');
+    const alloc = State.get().allocations.find(a => a.id === allocId);
     if (alloc) {
       target.dataset.resizeOrigStart = alloc.startDate;
       target.dataset.resizeOrigEnd = alloc.endDate;
@@ -206,7 +200,7 @@ const DragDrop = (() => {
     const colWidth = COL_WIDTH[zoom];
     const daysPerUnit = zoom === 'week' ? 7 : 1;
 
-    const allocIndex = parseInt(target.getAttribute('data-alloc-index'), 10);
+    const allocId = target.getAttribute('data-alloc-id');
     const state = State.get();
     const origStart = target.dataset.resizeOrigStart;
     const origEnd = target.dataset.resizeOrigEnd;
@@ -231,18 +225,12 @@ const DragDrop = (() => {
 
     if (newStartDate === origStart && newEndDate === origEnd) return;
 
-    const newAllocations = state.allocations.map((a, i) => {
-      if (i !== allocIndex) return a;
+    const newAllocations = state.allocations.map(a => {
+      if (a.id !== allocId) return a;
       return { ...a, startDate: newStartDate, endDate: newEndDate };
     });
 
-    State.set({ allocations: newAllocations });
-
-    try {
-      await API.savePlan(newAllocations, state.vacations, state.workSegments);
-    } catch (err) {
-      showError('Failed to save plan: ' + err.message);
-    }
+    await savePlanSafely({ allocations: newAllocations });
   }
 
   // ── Vacation drag ─────────────────────────
@@ -281,10 +269,7 @@ const DragDrop = (() => {
           v.endDate !== origEnd || v.type !== type) return v;
       return { ...v, startDate: shiftDate(origStart, daysShifted), endDate: shiftDate(origEnd, daysShifted) };
     });
-    State.set({ vacations: newVacations });
-    try {
-      await API.savePlan(state.allocations, newVacations, state.workSegments);
-    } catch (err) { showError('Failed to save plan: ' + err.message); }
+    await savePlanSafely({ vacations: newVacations });
   }
 
   // ── Vacation resize ───────────────────────
@@ -331,10 +316,7 @@ const DragDrop = (() => {
           v.endDate !== origEnd || v.type !== type) return v;
       return { ...v, startDate: newStartDate, endDate: newEndDate };
     });
-    State.set({ vacations: newVacations });
-    try {
-      await API.savePlan(state.allocations, newVacations, state.workSegments);
-    } catch (err) { showError('Failed to save plan: ' + err.message); }
+    await savePlanSafely({ vacations: newVacations });
   }
 
   // ── Segment drag ──────────────────────────
@@ -368,10 +350,7 @@ const DragDrop = (() => {
       if (s.id !== segId) return s;
       return { ...s, startDate: shiftDate(s.startDate, daysShifted), endDate: shiftDate(s.endDate, daysShifted) };
     });
-    State.set({ workSegments: newWorkSegments });
-    try {
-      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-    } catch (err) { showError('Failed to save plan: ' + err.message); }
+    await savePlanSafely({ workSegments: newWorkSegments });
   }
 
   // ── Segment resize ────────────────────────
@@ -421,13 +400,8 @@ const DragDrop = (() => {
       if (s.id !== segId) return s;
       return { ...s, startDate: newStartDate, endDate: newEndDate };
     });
-    State.set({ workSegments: newWorkSegments });
-    try {
-      await API.savePlan(state.allocations, state.vacations, newWorkSegments);
-    } catch (err) { showError('Failed to save plan: ' + err.message); }
+    await savePlanSafely({ workSegments: newWorkSegments });
   }
-
-  const showError = (msg) => SidePanel.showError(msg);
 
   return { attach };
 })();

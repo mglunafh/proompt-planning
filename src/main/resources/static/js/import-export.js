@@ -11,7 +11,7 @@
       State.set({
         tasks: result.tasks,
         resources: result.resources,
-        allocations: result.allocations,
+        allocations: ensureAllocIds(result.allocations),
         vacations: [],
         workSegments: [],
       });
@@ -30,7 +30,7 @@
       State.set({
         tasks:       result.tasks,
         resources:   result.resources,
-        allocations: result.allocations,
+        allocations: ensureAllocIds(result.allocations),
       });
       if (result.warnings.length > 0) showWarnings(result.warnings);
     } catch (err) {
@@ -52,7 +52,7 @@
       State.set({
         tasks: normalized.tasks,
         resources: normalized.resources,
-        allocations: normalized.allocations,
+        allocations: ensureAllocIds(normalized.allocations),
         vacations: normalized.vacations,
         workSegments: normalized.workSegments ?? [],
       });
