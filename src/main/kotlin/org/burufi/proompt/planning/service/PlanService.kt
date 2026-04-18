@@ -7,9 +7,11 @@ import org.springframework.stereotype.Service
 @Service
 class PlanService {
 
-    fun save(request: PlanRequest): PlanResponse =
-        PlanResponse(
+    fun save(request: PlanRequest): PlanResponse {
+        val activeAllocations = request.plans.find { it.id == request.activePlanId }?.allocations ?: emptyList()
+        return PlanResponse(
             saved = true,
-            count = request.allocations.size + request.vacations.size,
+            count = activeAllocations.size + request.vacations.size,
         )
+    }
 }

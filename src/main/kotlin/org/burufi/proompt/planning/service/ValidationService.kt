@@ -3,6 +3,7 @@ package org.burufi.proompt.planning.service
 import org.burufi.proompt.planning.dto.ValidationIssue
 import org.burufi.proompt.planning.dto.ValidationResponse
 import org.burufi.proompt.planning.model.Allocation
+import org.burufi.proompt.planning.model.Resource
 import org.burufi.proompt.planning.model.Snapshot
 import org.burufi.proompt.planning.model.Vacation
 import org.burufi.proompt.planning.model.WorkSegment
@@ -38,9 +39,18 @@ class ValidationService {
                 issues += error("Duplicate resource ID: $id", "resources")
             }
 
-        // Allocation reference integrity + date ordering
-        snapshot.allocations.forEachIndexed { i, alloc ->
-            issues += validateAllocation(alloc, i, taskIds, resourceIds, snapshot)
+        // Allocation reference integrity + date ordering (per plan or legacy)
+        if (snapshot.plans.isNotEmpty()) {
+            snapshot.plans.forEachIndexed { pi, plan ->
+                plan.allocations.forEachIndexed { ai, alloc ->
+                    issues += validateAllocationAt(alloc, taskIds, resourceIds, snapshot.resources, "plans[$pi].allocations[$ai]")
+                }
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            snapshot.allocations.forEachIndexed { i, alloc ->
+                issues += validateAllocationAt(alloc, taskIds, resourceIds, snapshot.resources, "allocations[$i]")
+            }
         }
 
         // Vacation reference integrity + date ordering
@@ -59,32 +69,32 @@ class ValidationService {
         )
     }
 
-    private fun validateAllocation(
+    private fun validateAllocationAt(
         alloc: Allocation,
-        index: Int,
         taskIds: Set<String>,
         resourceIds: Set<String>,
-        snapshot: Snapshot,
+        resources: List<Resource>,
+        fieldPrefix: String,
     ): List<ValidationIssue> {
         val issues = mutableListOf<ValidationIssue>()
         if (alloc.taskId !in taskIds) {
-            issues += error("Allocation references unknown taskId: ${alloc.taskId}", "allocations[$index].taskId")
+            issues += error("Allocation references unknown taskId: ${alloc.taskId}", "$fieldPrefix.taskId")
         }
         if (alloc.resourceId != null) {
             if (alloc.resourceId !in resourceIds) {
-                issues += error("Allocation references unknown resourceId: ${alloc.resourceId}", "allocations[$index].resourceId")
+                issues += error("Allocation references unknown resourceId: ${alloc.resourceId}", "$fieldPrefix.resourceId")
             } else {
-                val resource = snapshot.resources.find { it.id == alloc.resourceId }
+                val resource = resources.find { it.id == alloc.resourceId }
                 if (resource != null && resource.role != alloc.role) {
                     issues += error(
                         "Allocation role ${alloc.role} does not match resource role ${resource.role}",
-                        "allocations[$index].role",
+                        "$fieldPrefix.role",
                     )
                 }
             }
         }
         if (alloc.startDate > alloc.endDate) {
-            issues += error("Allocation startDate is after endDate", "allocations[$index]")
+            issues += error("Allocation startDate is after endDate", fieldPrefix)
         }
         return issues
     }

@@ -2,6 +2,7 @@ package org.burufi.proompt.planning.service
 
 import org.burufi.proompt.planning.exception.ValidationException
 import org.burufi.proompt.planning.model.Allocation
+import org.burufi.proompt.planning.model.AllocationPlan
 import org.burufi.proompt.planning.model.Resource
 import org.burufi.proompt.planning.model.Snapshot
 import org.springframework.stereotype.Service
@@ -21,11 +22,28 @@ class JsonImportService(private val validationService: ValidationService) {
 
     private fun normalize(snapshot: Snapshot): Snapshot {
         val normalizedResources = snapshot.resources.map { it.copy(name = it.name.trim()) }
-        return snapshot.copy(
-            tasks = snapshot.tasks.map { it.copy(title = it.title.trim(), project = it.project?.trim(), status = it.status?.trim()) },
+        val migrated = migratePlans(snapshot)
+        return migrated.copy(
+            tasks = migrated.tasks.map { it.copy(title = it.title.trim(), project = it.project?.trim(), status = it.status?.trim()) },
             resources = normalizedResources,
-            allocations = normalizeAllocations(snapshot.allocations, normalizedResources),
+            allocations = emptyList(),
+            plans = migrated.plans.map { plan ->
+                plan.copy(allocations = normalizeAllocations(plan.allocations, normalizedResources))
+            },
         )
+    }
+
+    private fun migratePlans(snapshot: Snapshot): Snapshot {
+        if (snapshot.plans.isNotEmpty()) {
+            val validActivePlanId = if (snapshot.plans.any { it.id == snapshot.activePlanId }) {
+                snapshot.activePlanId
+            } else {
+                snapshot.plans.first().id
+            }
+            return snapshot.copy(activePlanId = validActivePlanId, allocations = emptyList())
+        }
+        val plan1 = AllocationPlan(UUID.randomUUID().toString(), "Plan 1", snapshot.allocations)
+        return snapshot.copy(plans = listOf(plan1), activePlanId = plan1.id, allocations = emptyList())
     }
 
     internal fun normalizeAllocations(allocations: List<Allocation>, resources: List<Resource>): List<Allocation> {

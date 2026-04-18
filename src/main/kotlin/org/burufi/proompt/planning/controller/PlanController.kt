@@ -21,7 +21,13 @@ class PlanController(
     fun savePlan(@RequestBody request: PlanRequest): ResponseEntity<PlanResponse> {
         planStateHolder.snapshot?.let { existing ->
             planStateHolder.update(
-                existing.copy(allocations = request.allocations, vacations = request.vacations, workSegments = request.workSegments),
+                existing.copy(
+                    allocations = emptyList(),
+                    vacations = request.vacations,
+                    workSegments = request.workSegments,
+                    plans = request.plans.ifEmpty { existing.plans },
+                    activePlanId = request.activePlanId ?: existing.activePlanId,
+                ),
                 planStateHolder.sourceFilename ?: "plan",
             )
         }

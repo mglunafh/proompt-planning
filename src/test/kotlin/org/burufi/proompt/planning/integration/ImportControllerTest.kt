@@ -108,9 +108,12 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(jsonPath("$.tasks[?(@.id == 'F-1')].type").value("FEATURE"))
             .andExpect(jsonPath("$.tasks[?(@.id == 'S-1')].parentId").value("F-1"))
             .andExpect(jsonPath("$.resources.length()").value(3))
-            .andExpect(jsonPath("$.allocations.length()").value(4))
-            .andExpect(jsonPath("$.allocations[?(@.taskId == 'S-1' && @.resourceId == 'dev-1')].comment").value("Core login flow"))
-            .andExpect(jsonPath("$.allocations[?(@.taskId == 'S-2' && @.resourceId == 'dev-1')][0].comment").doesNotExist())
+            .andExpect(jsonPath("$.allocations.length()").value(0))
+            .andExpect(jsonPath("$.plans.length()").value(1))
+            .andExpect(jsonPath("$.plans[0].name").value("Plan 1"))
+            .andExpect(jsonPath("$.plans[0].allocations.length()").value(4))
+            .andExpect(jsonPath("$.plans[0].allocations[?(@.taskId == 'S-1' && @.resourceId == 'dev-1')].comment").value("Core login flow"))
+            .andExpect(jsonPath("$.plans[0].allocations[?(@.taskId == 'S-2' && @.resourceId == 'dev-1')][0].comment").doesNotExist())
             .andExpect(jsonPath("$.vacations.length()").value(1))
             .andExpect(jsonPath("$.vacations[0].resourceId").value("dev-1"))
             .andExpect(jsonPath("$.vacations[0].type").value("DAY_OFF"))
@@ -162,7 +165,10 @@ class ImportControllerTest : AbstractIntegrationTest() {
             .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-1')]").isNotEmpty)
             .andExpect(jsonPath("$.tasks[?(@.id == 'PRJ-2')]").isNotEmpty)
             .andExpect(jsonPath("$.resources.length()").value(2))
-            .andExpect(jsonPath("$.allocations.length()").value(1))
+        // Allocations are preserved in plans (not in the merge response body)
+        val state = planStateHolder.snapshot
+        assertNotNull(state)
+        assertEquals(1, state.plans.sumOf { it.allocations.size }, "Existing allocation should be preserved in plans after merge")
     }
 
     @Test

@@ -2,6 +2,7 @@ package org.burufi.proompt.planning.controller
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.burufi.proompt.planning.dto.ImportCsvResponse
+import org.burufi.proompt.planning.model.AllocationPlan
 import org.burufi.proompt.planning.model.Snapshot
 import org.burufi.proompt.planning.service.CsvImportService
 import org.burufi.proompt.planning.service.JsonImportService
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import java.time.Instant
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/import")
@@ -28,12 +30,15 @@ class ImportController(
     fun importCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
         val response = csvImportService.import(file)
         val allocations = jsonImportService.normalizeAllocations(response.allocations, response.resources)
+        val defaultPlan = AllocationPlan(UUID.randomUUID().toString(), "Plan 1", allocations)
         val snapshot = Snapshot(
             version = "1.0",
             generatedAt = Instant.now(),
             tasks = response.tasks,
             resources = response.resources,
-            allocations = allocations,
+            allocations = emptyList(),
+            plans = listOf(defaultPlan),
+            activePlanId = defaultPlan.id,
         )
         planStateHolder.update(snapshot, file.originalFilename ?: "import.csv")
         return ResponseEntity.ok(response.copy(allocations = allocations))
@@ -43,17 +48,26 @@ class ImportController(
     fun mergeCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
         val existing = planStateHolder.snapshot
         val response = csvImportService.merge(file, existing)
-        val allocations = jsonImportService.normalizeAllocations(response.allocations, response.resources)
+        val existingPlans = existing?.plans ?: emptyList()
+        val plans = if (existingPlans.isEmpty()) {
+            listOf(AllocationPlan(UUID.randomUUID().toString(), "Plan 1", emptyList()))
+        } else {
+            existingPlans
+        }
+        val activePlanId = existing?.activePlanId ?: plans.first().id
         val merged = Snapshot(
             version = "1.0",
             generatedAt = Instant.now(),
             tasks = response.tasks,
             resources = response.resources,
-            allocations = allocations,
+            allocations = emptyList(),
             vacations = existing?.vacations ?: emptyList(),
+            workSegments = existing?.workSegments ?: emptyList(),
+            plans = plans,
+            activePlanId = activePlanId,
         )
         planStateHolder.update(merged, file.originalFilename ?: "merge.csv")
-        return ResponseEntity.ok(response.copy(allocations = allocations))
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/plan", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
