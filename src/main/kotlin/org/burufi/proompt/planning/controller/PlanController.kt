@@ -24,7 +24,6 @@ class PlanController(
                 existing.copy(
                     allocations = emptyList(),
                     vacations = request.vacations,
-                    workSegments = request.workSegments,
                     plans = request.plans.ifEmpty { existing.plans },
                     activePlanId = request.activePlanId ?: existing.activePlanId,
                 ),

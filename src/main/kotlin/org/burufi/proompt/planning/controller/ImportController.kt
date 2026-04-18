@@ -62,7 +62,6 @@ class ImportController(
             resources = response.resources,
             allocations = emptyList(),
             vacations = existing?.vacations ?: emptyList(),
-            workSegments = existing?.workSegments ?: emptyList(),
             plans = plans,
             activePlanId = activePlanId,
         )

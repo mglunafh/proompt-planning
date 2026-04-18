@@ -16,8 +16,6 @@ data class Snapshot(
     @Deprecated("Kept for importing legacy snapshots only. Use plans instead.")
     val allocations: List<Allocation> = emptyList(),
     val vacations: List<Vacation> = emptyList(),
-    /** Compat: absent in snapshots produced before the work-planning view was added. */
-    val workSegments: List<WorkSegment> = emptyList(),
     /** Named allocation plans. Replaces the top-level [allocations] field. */
     val plans: List<AllocationPlan> = emptyList(),
     /** ID of the currently active plan. `null` if and only if [plans] is empty. */

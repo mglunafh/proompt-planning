@@ -4,15 +4,13 @@ const SidePanel = (() => {
   const panel   = document.getElementById('side-panel');
   const content = document.getElementById('side-panel-content');
 
-  let openMode       = null; // 'task' | 'resource' | 'work-planning'
+  let openMode       = null; // 'task' | 'resource'
   let openTaskId     = null;
   let openResourceId = null;
 
   let _editingAllocation  = null; // full Allocation object being edited
   let _editingVacation    = null; // full Vacation object being edited
-  let _editingWorkSegment = null; // full WorkSegment object being edited
   let _addingAllocation   = null; // { resourceId, startDate } for new allocation dialog
-  let _addingWorkSegment  = null; // truthy when add-work-segment modal is open
 
   const editDialog      = document.getElementById('edit-alloc-dialog');
   const editDialogTitle = document.getElementById('edit-dialog-title');
@@ -21,9 +19,7 @@ const SidePanel = (() => {
   document.getElementById('btn-edit-confirm').addEventListener('click', () => {
     if (_editingAllocation) confirmEditAllocation();
     else if (_editingVacation) confirmEditVacation();
-    else if (_editingWorkSegment) confirmEditWorkSegment();
     else if (_addingAllocation) confirmAddAllocationDialog();
-    else if (_addingWorkSegment) confirmAddWorkSegmentDialog();
   });
   document.getElementById('btn-edit-cancel').addEventListener('click', closeEditDialog);
   editDialog.addEventListener('click', (e) => { if (e.target === editDialog) closeEditDialog(); });
@@ -47,7 +43,7 @@ const SidePanel = (() => {
   });
 
   function closeEditDialog() {
-    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = _addingWorkSegment = null;
+    _editingAllocation = _editingVacation = _addingAllocation = null;
     editDialog.classList.add('hidden');
   }
 
@@ -55,9 +51,8 @@ const SidePanel = (() => {
 
   State.subscribe((state) => {
     if (panel.classList.contains('hidden')) return;
-    if (openMode === 'task'          && openTaskId)     refreshTaskFromState(state, openTaskId);
-    if (openMode === 'resource'      && openResourceId) refreshResourceFromState(state, openResourceId);
-    if (openMode === 'work-planning' && openTaskId)     refreshWorkPlanningFromState(state, openTaskId);
+    if (openMode === 'task'     && openTaskId)     refreshTaskFromState(state, openTaskId);
+    if (openMode === 'resource' && openResourceId) refreshResourceFromState(state, openResourceId);
   });
 
   // ── Delegation ────────────────────────────
@@ -121,24 +116,8 @@ const SidePanel = (() => {
         if (vac) openEditVacationDialog(vac);
         break;
       }
-      case 'add-work-segment':
-        showAddWorkSegmentForm();
-        break;
-      case 'work-segment-confirm':
-        confirmAddWorkSegment();
-        break;
-      case 'work-segment-cancel':
-        refreshWorkPlanningFromState(State.get(), openTaskId);
-        break;
-      case 'delete-work-segment':
-        deleteWorkSegment(el.dataset.segmentId);
-        break;
-      case 'edit-work-segment': {
-        const seg = State.get().workSegments.find(s => s.id === el.dataset.segmentId);
-        if (seg) openEditWorkSegmentDialog(seg);
-        break;
-      }
     }
+
   }
 
   // ── Public API ────────────────────────────
@@ -160,14 +139,6 @@ const SidePanel = (() => {
     panel.classList.remove('hidden');
   }
 
-  function openWorkPlanningTask({ task, workSegments }) {
-    openMode       = 'work-planning';
-    openTaskId     = task.id;
-    openResourceId = null;
-    content.innerHTML = buildWorkPlanningContent(task, workSegments);
-    panel.classList.remove('hidden');
-  }
-
   function close() {
     openMode = openTaskId = openResourceId = null;
     panel.classList.add('hidden');
@@ -181,14 +152,6 @@ const SidePanel = (() => {
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
     const resources   = allocations.map(a => state.resources.find(r => r.id === a.resourceId)).filter(Boolean);
     content.innerHTML = buildTaskContent(task, resources, allocations);
-  }
-
-  function refreshWorkPlanningFromState(state, taskId) {
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
-    const workSegments = (state.workSegments ?? []).filter(s => s.taskId === taskId)
-      .sort((a, b) => a.startDate.localeCompare(b.startDate));
-    content.innerHTML = buildWorkPlanningContent(task, workSegments);
   }
 
   function refreshResourceFromState(state, resourceId) {
@@ -320,215 +283,6 @@ const SidePanel = (() => {
     `.trim();
   }
 
-  // ── Work planning panel HTML ──────────────
-  function buildWorkPlanningContent(task, workSegments) {
-    const rows = workSegments.map(s => {
-      const roleLabel = ROLE_LABELS[s.role] ?? s.role;
-      const comment   = s.comment ? ` <span style="color:#94a3b8">(${Tooltip.escHtml(s.comment)})</span>` : '';
-      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-work-segment" data-segment-id="${Tooltip.escHtml(s.id)}" title="Remove segment">&times;</button>`;
-      const editBtn = `<button class="btn-alloc-edit"   data-action="edit-work-segment"   data-segment-id="${Tooltip.escHtml(s.id)}" title="Edit segment">✎</button>`;
-      return `<tr>
-        <td><span class="alloc-resource-dot alloc-resource-dot--${s.role.toLowerCase()}"></span>${Tooltip.escHtml(s.label)}${comment}</td>
-        <td><span class="role-badge role-badge--${s.role.toLowerCase()}" style="font-size:10px">${Tooltip.escHtml(roleLabel)}</span></td>
-        <td>${s.startDate}</td><td>${s.endDate}</td>
-        <td style="width:36px;text-align:right">${editBtn}${delBtn}</td>
-      </tr>`;
-    }).join('');
-
-    return `
-      <div class="task-id">${Tooltip.escHtml(task.id)}</div>
-      <div class="panel-title">${Tooltip.escHtml(task.title)}</div>
-      ${typeField(task.type)}
-      ${field('Project', task.project)}
-      ${field('Status', task.status)}
-      ${workSegments.length > 0 ? `
-        <div class="panel-field">
-          <div class="panel-field-label">Work segments</div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <thead><tr style="color:#64748b">
-              <th style="text-align:left;padding-bottom:4px">Label</th>
-              <th style="text-align:left;padding-bottom:4px">Role</th>
-              <th style="text-align:left;padding-bottom:4px">From</th>
-              <th style="text-align:left;padding-bottom:4px">To</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>` : ''}
-      <div class="panel-field">
-        <button class="btn-add-allocation" data-action="add-work-segment">+ Add work segment</button>
-      </div>
-    `.trim();
-  }
-
-  function showAddWorkSegmentForm() {
-    const state     = State.get();
-    const existing  = (state.workSegments ?? []).filter(s => s.taskId === openTaskId);
-    const startDate = defaultStartDate(existing, state);
-    const endDate   = shiftDate(startDate, 6);
-
-    const fieldEl = content.querySelector('[data-action="add-work-segment"]')?.closest('.panel-field');
-    if (!fieldEl) return;
-    fieldEl.outerHTML = `
-      <div class="panel-field alloc-form" id="work-segment-form">
-        <div class="panel-field-label">New Work Segment</div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" placeholder="Label (e.g. Analysis)" style="margin-bottom:6px">
-        ${buildRoleCustomSelectHtml(ROLES[0])}
-        <div class="alloc-date-row">
-          <input type="date" class="alloc-date-input" data-field="seg-start" value="${startDate}">
-          <span class="alloc-date-sep">→</span>
-          <input type="date" class="alloc-date-input" data-field="seg-end" value="${endDate}">
-        </div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment" placeholder="Comment (optional)">
-        <div class="alloc-form-actions">
-          <button class="btn-alloc-confirm" data-action="work-segment-confirm">Add</button>
-          <button class="btn-alloc-cancel"  data-action="work-segment-cancel">Cancel</button>
-        </div>
-      </div>`;
-  }
-
-  async function confirmAddWorkSegment() {
-    const label     = content.querySelector('[data-field="seg-label"]')?.value.trim();
-    const role      = content.querySelector('.alloc-custom-select')?.dataset.selectedValue;
-    const startDate = content.querySelector('[data-field="seg-start"]')?.value;
-    const endDate   = content.querySelector('[data-field="seg-end"]')?.value;
-    const comment   = content.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
-    if (!label || !role || !startDate || !endDate) return;
-    const dateError = validateDateRange(startDate, endDate);
-    if (dateError) { showError(dateError); return; }
-
-    const state = State.get();
-    const newSeg = { id: crypto.randomUUID(), taskId: openTaskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
-    const newWorkSegments = [...(state.workSegments ?? []), newSeg];
-    await savePlanSafely({ workSegments: newWorkSegments });
-  }
-
-  function deleteWorkSegment(segmentId) {
-    const state = State.get();
-    const seg   = (state.workSegments ?? []).find(s => s.id === segmentId);
-    const task  = state.tasks.find(t => t.id === seg?.taskId);
-    deleteDialogBody.innerHTML =
-      `<strong>${seg ? Tooltip.escHtml(seg.label) : 'Work segment'}</strong><br>` +
-      (task ? `<span style="color:#64748b;font-size:12px">${Tooltip.escHtml(task.title)}</span><br>` : '') +
-      (seg  ? `<span style="color:#64748b;font-size:12px">${seg.startDate} → ${seg.endDate}</span>` : '');
-    _pendingDelete = { _isWorkSegment: true, segmentId };
-    deleteDialog.classList.remove('hidden');
-  }
-
-  function openEditWorkSegmentDialog(seg) {
-    _editingAllocation = _editingVacation = _addingWorkSegment = null;
-    _editingWorkSegment = seg;
-    editDialogTitle.textContent = 'Edit Work Segment';
-    const state = State.get();
-    const sortedTasks = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const taskOptions = sortedTasks.map(t => `
-      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
-        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
-        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
-        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
-    const selTask  = state.tasks.find(t => t.id === seg.taskId);
-    const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
-    const taskName = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : Tooltip.escHtml(seg.taskId);
-    editDialogBody.innerHTML = `
-      <div class="alloc-form">
-        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
-        ${buildCustomSelectHtml(seg.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
-        <div class="panel-field-label" style="margin:8px 0 4px">Label</div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" value="${Tooltip.escHtml(seg.label)}" style="margin-bottom:6px">
-        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
-        ${buildRoleCustomSelectHtml(seg.role)}
-        <div class="alloc-date-row" style="margin-top:8px">
-          <input type="date" class="alloc-date-input" data-field="seg-start" value="${seg.startDate}">
-          <span class="alloc-date-sep">→</span>
-          <input type="date" class="alloc-date-input" data-field="seg-end" value="${seg.endDate}">
-        </div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment"
-          placeholder="Comment (optional)" value="${Tooltip.escHtml(seg.comment ?? '')}">
-      </div>`;
-    editDialog.classList.remove('hidden');
-  }
-
-  async function confirmEditWorkSegment() {
-    const orig      = _editingWorkSegment;
-    const selects   = editDialogBody.querySelectorAll('.alloc-custom-select');
-    const taskId    = selects[0]?.dataset.selectedValue;
-    const label     = editDialogBody.querySelector('[data-field="seg-label"]')?.value.trim();
-    const role      = selects[1]?.dataset.selectedValue;
-    const startDate = editDialogBody.querySelector('[data-field="seg-start"]')?.value;
-    const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
-    const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
-    if (!taskId || !label || !role || !startDate || !endDate) return;
-    const dateError = validateDateRange(startDate, endDate);
-    if (dateError) { showError(dateError); return; }
-    const state   = State.get();
-    const updated = { ...orig, taskId, label, role, startDate, endDate, ...(comment ? { comment } : { comment: undefined }) };
-    const newWorkSegments = (state.workSegments ?? []).map(s => s.id === orig.id ? updated : s);
-    const confirmBtn = document.getElementById('btn-edit-confirm');
-    closeEditDialog();
-    if (confirmBtn) confirmBtn.disabled = true;
-    try {
-      await savePlanSafely({ workSegments: newWorkSegments });
-    } finally {
-      if (confirmBtn) confirmBtn.disabled = false;
-    }
-  }
-
-  function openAddWorkSegmentDialog(taskId, startDate) {
-    _editingAllocation = _editingVacation = _editingWorkSegment = _addingAllocation = null;
-    _addingWorkSegment = { taskId };
-    const state = State.get();
-    const endDate = shiftDate(startDate, 6);
-    editDialogTitle.textContent = 'Add Work Segment';
-    const sortedTasks = [...state.tasks].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const taskOptions = sortedTasks.map(t => `
-      <button class="alloc-task-option" data-value="${Tooltip.escHtml(t.id)}"
-        data-type="${taskTypeCssClass(t.type)}" data-name="${Tooltip.escHtml(t.id + ': ' + t.title)}">
-        <span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(t.type)}"></span>
-        <span style="color:#94a3b8;font-size:11px">${Tooltip.escHtml(t.id)}</span> ${Tooltip.escHtml(t.title)}</button>`).join('');
-    const selTask  = state.tasks.find(t => t.id === taskId);
-    const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
-    const taskName = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : (taskId ? Tooltip.escHtml(taskId) : '—');
-    editDialogBody.innerHTML = `
-      <div class="alloc-form">
-        <div class="panel-field-label" style="margin-bottom:4px">Task</div>
-        ${buildCustomSelectHtml(taskId ?? '', taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
-        <div class="panel-field-label" style="margin:8px 0 4px">Label</div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-label" placeholder="Label (e.g. Analysis)" style="margin-bottom:6px">
-        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
-        ${buildRoleCustomSelectHtml(ROLES[0])}
-        <div class="alloc-date-row" style="margin-top:8px">
-          <input type="date" class="alloc-date-input" data-field="seg-start" value="${startDate}">
-          <span class="alloc-date-sep">→</span>
-          <input type="date" class="alloc-date-input" data-field="seg-end" value="${endDate}">
-        </div>
-        <input type="text" class="alloc-vac-comment-input" data-field="seg-comment" placeholder="Comment (optional)">
-      </div>`;
-    editDialog.classList.remove('hidden');
-  }
-
-  async function confirmAddWorkSegmentDialog() {
-    const selects   = editDialogBody.querySelectorAll('.alloc-custom-select');
-    const taskId    = selects[0]?.dataset.selectedValue;
-    const role      = selects[1]?.dataset.selectedValue;
-    const label     = editDialogBody.querySelector('[data-field="seg-label"]')?.value.trim();
-    const startDate = editDialogBody.querySelector('[data-field="seg-start"]')?.value;
-    const endDate   = editDialogBody.querySelector('[data-field="seg-end"]')?.value;
-    const comment   = editDialogBody.querySelector('[data-field="seg-comment"]')?.value.trim() || undefined;
-    if (!taskId || !role || !label || !startDate || !endDate) return;
-    const dateError = validateDateRange(startDate, endDate);
-    if (dateError) { showError(dateError); return; }
-    const state = State.get();
-    const newSeg = { id: crypto.randomUUID(), taskId, label, role, startDate, endDate, ...(comment ? { comment } : {}) };
-    const newWorkSegments = [...(state.workSegments ?? []), newSeg];
-    const confirmBtn = document.getElementById('btn-edit-confirm');
-    closeEditDialog();
-    if (confirmBtn) confirmBtn.disabled = true;
-    try {
-      await savePlanSafely({ workSegments: newWorkSegments });
-    } finally {
-      if (confirmBtn) confirmBtn.disabled = false;
-    }
-  }
-
   // ── Delete allocation ─────────────────────
   let _pendingDelete = null;
 
@@ -542,10 +296,7 @@ const SidePanel = (() => {
     deleteDialog.classList.add('hidden');
 
     const state = State.get();
-    if (pending._isWorkSegment) {
-      const newWorkSegments = (state.workSegments ?? []).filter(s => s.id !== pending.segmentId);
-      await savePlanSafely({ workSegments: newWorkSegments });
-    } else if (pending._isVacation) {
+    if (pending._isVacation) {
       const newVacations = state.vacations.filter(v =>
         !(v.resourceId === pending.resourceId && v.startDate === pending.startDate &&
           v.endDate === pending.endDate && v.type === pending.type)
@@ -1025,5 +776,5 @@ const SidePanel = (() => {
     showAddResourceAllocationForm(startDate);
   }
 
-  return { open: openTask, openTask, openResource, openWorkPlanningTask, openResourceAndShowAllocForm, openAddAllocationDialog, openAddWorkSegmentDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, promptDeleteWorkSegment: deleteWorkSegment, showError, showSaving, hideSaving, openEditAllocationDialog, openEditVacationDialog, openEditWorkSegmentDialog, closeEditDialog };
+  return { open: openTask, openTask, openResource, openResourceAndShowAllocForm, openAddAllocationDialog, close, promptDeleteAllocation: deleteAllocation, promptDeleteVacation: deleteVacation, showError, showSaving, hideSaving, openEditAllocationDialog, openEditVacationDialog, closeEditDialog };
 })();

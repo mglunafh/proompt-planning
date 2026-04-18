@@ -40,11 +40,11 @@ const API = (() => {
     });
   }
 
-  async function savePlan(vacations, workSegments = [], plans = [], activePlanId = null) {
+  async function savePlan(vacations, plans = [], activePlanId = null) {
     return request('/api/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vacations, workSegments, plans, activePlanId }),
+      body: JSON.stringify({ vacations, plans, activePlanId }),
     });
   }
 

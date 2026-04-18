@@ -80,7 +80,7 @@ async function savePlanSafely(partialState) {
   const s = State.get();
   SidePanel.showSaving();
   try {
-    await API.savePlan(s.vacations, s.workSegments, s.plans, s.activePlanId);
+    await API.savePlan(s.vacations, s.plans, s.activePlanId);
   } catch (err) {
     State.set(prev);
     SidePanel.showError('Failed to save: ' + err.message);

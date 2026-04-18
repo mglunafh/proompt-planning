@@ -15,7 +15,6 @@
         resources: result.resources,
         allocations,
         vacations: [],
-        workSegments: [],
         plans: [newPlan],
         activePlanId: newPlan.id,
       });
@@ -58,7 +57,6 @@
         resources: normalized.resources,
         allocations: ensureAllocIds(normalized.plans?.find(p => p.id === normalized.activePlanId)?.allocations ?? []),
         vacations: normalized.vacations,
-        workSegments: normalized.workSegments ?? [],
         plans: normalized.plans ?? [],
         activePlanId: normalized.activePlanId ?? null,
       });
@@ -89,7 +87,6 @@
       resources: state.resources,
       allocations: [],
       vacations: state.vacations,
-      workSegments: state.workSegments ?? [],
       plans: state.plans,
       activePlanId: state.activePlanId,
     };
