@@ -38,7 +38,12 @@ const SidePanel = (() => {
       return;
     }
     const option = e.target.closest('.alloc-resource-option, .alloc-task-option, .alloc-role-option');
-    if (option) selectOptionIn(editDialogBody, option);
+    if (option) {
+      selectOptionIn(editDialogBody, option);
+      if (option.classList.contains('alloc-role-option') && (_editingAllocation || _addingAllocation)) {
+        refreshAllocResourceDropdown(editDialogBody, option.dataset.value);
+      }
+    }
   });
 
   function closeEditDialog() {
@@ -66,7 +71,7 @@ const SidePanel = (() => {
   function handleAction(el) {
     switch (el.dataset.action) {
       case 'delete-allocation':
-        deleteAllocation(el.dataset.taskId, el.dataset.resourceId, el.dataset.start, el.dataset.end);
+        deleteAllocation(el.dataset.allocId);
         break;
       case 'add-allocation':
         showAddTaskAllocationForm();
@@ -104,10 +109,7 @@ const SidePanel = (() => {
         deleteVacation(el.dataset.resourceId, el.dataset.start, el.dataset.end, el.dataset.type);
         break;
       case 'edit-allocation': {
-        const alloc = State.get().allocations.find(a =>
-          a.taskId === el.dataset.taskId && a.resourceId === el.dataset.resourceId &&
-          a.startDate === el.dataset.start && a.endDate === el.dataset.end
-        );
+        const alloc = State.get().allocations.find(a => a.id === el.dataset.allocId);
         if (alloc) openEditAllocationDialog(alloc);
         break;
       }
@@ -218,13 +220,17 @@ const SidePanel = (() => {
 
   function buildTaskContent(task, resources, allocations) {
     const rows = allocations.map(a => {
-      const res      = resources.find(r => r.id === a.resourceId);
-      const name     = res ? Tooltip.escHtml(res.name) : Tooltip.escHtml(a.resourceId);
-      const nameCell = res
-        ? `<span class="alloc-resource-dot alloc-resource-dot--${res.role.toLowerCase()}"></span>${name}`
-        : name;
-      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
-      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Edit allocation">✎</button>`;
+      const res = resources.find(r => r.id === a.resourceId);
+      let nameCell;
+      if (res) {
+        nameCell = `<span class="alloc-resource-dot alloc-resource-dot--${res.role.toLowerCase()}"></span>${Tooltip.escHtml(res.name)}`;
+      } else if (a.resourceId) {
+        nameCell = Tooltip.escHtml(a.resourceId);
+      } else {
+        nameCell = `<span class="alloc-resource-dot alloc-resource-dot--${(a.role ?? 'developer').toLowerCase()}"></span><em style="color:#94a3b8">Unassigned</em>`;
+      }
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-alloc-id="${Tooltip.escHtml(a.id)}" title="Remove allocation">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-alloc-id="${Tooltip.escHtml(a.id)}" title="Edit allocation">✎</button>`;
       return `<tr><td>${nameCell}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:36px;text-align:right">${editBtn}${delBtn}</td></tr>`;
     }).join('');
 
@@ -261,8 +267,8 @@ const SidePanel = (() => {
       const dot  = task
         ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(task.type)}"></span>`
         : '';
-      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Remove allocation">&times;</button>`;
-      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-task-id="${Tooltip.escHtml(a.taskId)}" data-resource-id="${Tooltip.escHtml(a.resourceId)}" data-start="${a.startDate}" data-end="${a.endDate}" title="Edit allocation">✎</button>`;
+      const delBtn  = `<button class="btn-alloc-delete" data-action="delete-allocation" data-alloc-id="${Tooltip.escHtml(a.id)}" title="Remove allocation">&times;</button>`;
+      const editBtn = `<button class="btn-alloc-edit" data-action="edit-allocation" data-alloc-id="${Tooltip.escHtml(a.id)}" title="Edit allocation">✎</button>`;
       return `<tr><td>${dot}${name}</td><td>${a.startDate}</td><td>${a.endDate}</td><td style="width:36px;text-align:right">${editBtn}${delBtn}</td></tr>`;
     }).join('');
 
@@ -546,11 +552,7 @@ const SidePanel = (() => {
       );
       await savePlanSafely({ vacations: newVacations });
     } else {
-      const { taskId, resourceId, startDate, endDate } = pending;
-      const newAllocations = state.allocations.filter(a =>
-        !(a.taskId === taskId && a.resourceId === resourceId &&
-          a.startDate === startDate && a.endDate === endDate)
-      );
+      const newAllocations = state.allocations.filter(a => a.id !== pending.allocId);
       await savePlanSafely({ allocations: newAllocations });
     }
   });
@@ -567,16 +569,17 @@ const SidePanel = (() => {
     }
   });
 
-  function deleteAllocation(taskId, resourceId, startDate, endDate) {
+  function deleteAllocation(allocId) {
     const state    = State.get();
-    const task     = state.tasks.find(t => t.id === taskId);
-    const resource = state.resources.find(r => r.id === resourceId);
-    const taskName = task     ? Tooltip.escHtml(task.title)     : Tooltip.escHtml(taskId);
-    const resName  = resource ? Tooltip.escHtml(resource.name)  : Tooltip.escHtml(resourceId);
+    const alloc    = state.allocations.find(a => a.id === allocId);
+    const task     = state.tasks.find(t => t.id === alloc?.taskId);
+    const resource = alloc?.resourceId ? state.resources.find(r => r.id === alloc.resourceId) : null;
+    const taskName = task     ? Tooltip.escHtml(task.title)    : Tooltip.escHtml(alloc?.taskId ?? '');
+    const resName  = resource ? Tooltip.escHtml(resource.name) : '<em style="color:#94a3b8">Unassigned</em>';
     deleteDialogBody.innerHTML =
-      `<strong>${taskName}</strong> ← <strong>${resName}</strong><br>` +
-      `<span style="color:#64748b;font-size:12px">${startDate} → ${endDate}</span>`;
-    _pendingDelete = { taskId, resourceId, startDate, endDate };
+      `<strong>${taskName}</strong> \u2190 <strong>${resName}</strong><br>` +
+      (alloc ? `<span style="color:#64748b;font-size:12px">${alloc.startDate} \u2192 ${alloc.endDate}</span>` : '');
+    _pendingDelete = { allocId };
     deleteDialog.classList.remove('hidden');
   }
 
@@ -677,9 +680,10 @@ const SidePanel = (() => {
       <div class="panel-field alloc-form">
         <div class="panel-field-label">New Allocation</div>
         ${selectHtml}
+        <input type="text" class="alloc-vac-comment-input" data-field="duration" value="" placeholder="Duration (e.g. 1w2d)" style="margin-top:6px">
         <div class="alloc-date-row">
           <input type="date" class="alloc-date-input" data-field="start" value="${startDate}">
-          <span class="alloc-date-sep">→</span>
+          <span class="alloc-date-sep">\u2192</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${endDate}">
         </div>
         <input type="text" class="alloc-vac-comment-input" data-field="comment" placeholder="Comment (optional)">
@@ -690,19 +694,41 @@ const SidePanel = (() => {
       </div>`;
   }
 
-  function buildRoleCustomSelectHtml(selectedRole) {
+  function buildRoleCustomSelectHtml(selectedRole, selectType = '') {
     const options = ROLES.map(r => `
       <button class="alloc-role-option" data-value="${r}" data-role="${r.toLowerCase()}" data-name="${Tooltip.escHtml(ROLE_LABELS[r])}">
         <span class="alloc-resource-dot alloc-resource-dot--${r.toLowerCase()}"></span>${Tooltip.escHtml(ROLE_LABELS[r])}
       </button>`).join('');
     const dot   = `<span class="alloc-resource-dot alloc-resource-dot--${selectedRole.toLowerCase()}"></span>`;
     const label = Tooltip.escHtml(ROLE_LABELS[selectedRole] ?? selectedRole);
-    return buildCustomSelectHtml(selectedRole, dot, label, 'toggle-role-dropdown', options);
+    return buildCustomSelectHtml(selectedRole, dot, label, 'toggle-role-dropdown', options, selectType);
   }
 
-  function buildCustomSelectHtml(selectedId, triggerDotHtml, triggerName, toggleAction, optionItems) {
+  function buildResourceSelectForRoleHtml(role, selectedResourceId, resources) {
+    const filtered = resources.filter(r => r.role === role);
+    const unassignedOpt = `<button class="alloc-resource-option" data-value="" data-role="" data-name="\u2014 Unassigned \u2014">\u2014 Unassigned \u2014</button>`;
+    const resourceOpts = filtered.map(r => `
+      <button class="alloc-resource-option" data-value="${Tooltip.escHtml(r.id)}" data-role="${r.role.toLowerCase()}" data-name="${Tooltip.escHtml(r.name)}">
+        <span class="alloc-resource-dot alloc-resource-dot--${r.role.toLowerCase()}"></span>${Tooltip.escHtml(r.name)}
+      </button>`).join('');
+    const selRes  = selectedResourceId ? filtered.find(r => r.id === selectedResourceId) : null;
+    const resDot  = selRes ? `<span class="alloc-resource-dot alloc-resource-dot--${selRes.role.toLowerCase()}"></span>` : '';
+    const resName = selRes ? Tooltip.escHtml(selRes.name) : '\u2014 Unassigned \u2014';
+    const selId   = selRes ? selRes.id : '';
+    return buildCustomSelectHtml(selId, resDot, resName, 'toggle-resource-dropdown', unassignedOpt + resourceOpts, 'resource');
+  }
+
+  function refreshAllocResourceDropdown(container, role) {
+    const state          = State.get();
+    const resourceSelect = container.querySelector('.alloc-custom-select[data-select-type="resource"]');
+    if (!resourceSelect) return;
+    resourceSelect.outerHTML = buildResourceSelectForRoleHtml(role, null, state.resources);
+  }
+
+  function buildCustomSelectHtml(selectedId, triggerDotHtml, triggerName, toggleAction, optionItems, selectType = '') {
+    const typeAttr = selectType ? ` data-select-type="${selectType}"` : '';
     return `
-      <div class="alloc-custom-select" data-selected-value="${Tooltip.escHtml(selectedId)}">
+      <div class="alloc-custom-select" data-selected-value="${Tooltip.escHtml(selectedId)}"${typeAttr}>
         <button class="alloc-select-trigger" data-action="${toggleAction}" type="button">
           ${triggerDotHtml}<span class="alloc-select-label">${triggerName}</span><span class="alloc-select-chevron">▾</span>
         </button>
@@ -736,19 +762,29 @@ const SidePanel = (() => {
   }
 
   async function confirmAddAllocation() {
-    const selectedValue = content.querySelector('.alloc-custom-select')?.dataset.selectedValue;
-    const startDate     = content.querySelector('[data-field="start"]')?.value;
-    const endDate       = content.querySelector('[data-field="end"]')?.value;
+    const selectedValue     = content.querySelector('.alloc-custom-select')?.dataset.selectedValue;
+    const startDate         = content.querySelector('[data-field="start"]')?.value;
+    const endDate           = content.querySelector('[data-field="end"]')?.value;
     if (!selectedValue || !startDate || !endDate) return;
     const dateError = validateDateRange(startDate, endDate);
     if (dateError) { showError(dateError); return; }
 
-    const comment = content.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    const comment           = content.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    const durationRaw       = content.querySelector('[data-field="duration"]')?.value ?? '';
+    const estimatedDuration = parseDuration(durationRaw) ?? 0;
+    if (parseDuration(durationRaw) === null) { showError('Invalid duration format.'); return; }
     const state = State.get();
-    const newAlloc = openMode === 'task'
-      ? { id: crypto.randomUUID(), taskId: openTaskId,    resourceId: selectedValue, startDate, endDate, ...(comment ? { comment } : {}) }
-      : { id: crypto.randomUUID(), taskId: selectedValue, resourceId: openResourceId, startDate, endDate, ...(comment ? { comment } : {}) };
-
+    let taskId, resourceId, role;
+    if (openMode === 'task') {
+      taskId     = openTaskId;
+      resourceId = selectedValue;
+      role       = state.resources.find(r => r.id === resourceId)?.role ?? 'DEVELOPER';
+    } else {
+      taskId     = selectedValue;
+      resourceId = openResourceId;
+      role       = state.resources.find(r => r.id === resourceId)?.role ?? 'DEVELOPER';
+    }
+    const newAlloc = { id: crypto.randomUUID(), taskId, role, estimatedDuration, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
     const newAllocations = [...state.allocations, newAlloc];
     await savePlanSafely({ allocations: newAllocations });
   }
@@ -770,24 +806,22 @@ const SidePanel = (() => {
     const taskDot   = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
     const taskLabel = selTask ? Tooltip.escHtml(selTask.id + ': ' + selTask.title) : '—';
 
-    const resourceOptions = state.resources.map(r => `
-      <button class="alloc-resource-option" data-value="${Tooltip.escHtml(r.id)}"
-        data-role="${r.role.toLowerCase()}" data-name="${Tooltip.escHtml(r.name)}">
-        <span class="alloc-resource-dot alloc-resource-dot--${r.role.toLowerCase()}"></span>
-        ${Tooltip.escHtml(r.name)}</button>`).join('');
-    const selRes  = resourceId ? state.resources.find(r => r.id === resourceId) : null;
-    const resDot  = selRes ? `<span class="alloc-resource-dot alloc-resource-dot--${selRes.role.toLowerCase()}"></span>` : '';
-    const resName = selRes ? Tooltip.escHtml(selRes.name) : (resourceId ? Tooltip.escHtml(resourceId) : '—');
+    const selRes      = resourceId ? state.resources.find(r => r.id === resourceId) : null;
+    const initialRole = selRes?.role ?? (ROLES[0] ?? 'DEVELOPER');
 
     editDialogBody.innerHTML = `
       <div class="alloc-form">
         <div class="panel-field-label" style="margin-bottom:4px">Task</div>
-        ${buildCustomSelectHtml(selTask?.id ?? '', taskDot, taskLabel, 'toggle-task-dropdown', taskOptions)}
+        ${buildCustomSelectHtml(selTask?.id ?? '', taskDot, taskLabel, 'toggle-task-dropdown', taskOptions, 'task')}
+        <div class="panel-field-label" style="margin:8px 0 4px">Duration</div>
+        <input type="text" class="alloc-vac-comment-input" data-field="duration" value="" placeholder="e.g. 1w2d" style="margin-bottom:6px">
+        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
+        ${buildRoleCustomSelectHtml(initialRole, 'role')}
         <div class="panel-field-label" style="margin:8px 0 4px">Resource</div>
-        ${buildCustomSelectHtml(resourceId ?? '', resDot, resName, 'toggle-resource-dropdown', resourceOptions)}
+        ${buildResourceSelectForRoleHtml(initialRole, resourceId, state.resources)}
         <div class="alloc-date-row" style="margin-top:8px">
           <input type="date" class="alloc-date-input" data-field="start" value="${startDate}">
-          <span class="alloc-date-sep">→</span>
+          <span class="alloc-date-sep">\u2192</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${endDate}">
         </div>
         <input type="text" class="alloc-vac-comment-input" data-field="comment" placeholder="Comment (optional)">
@@ -796,17 +830,21 @@ const SidePanel = (() => {
   }
 
   async function confirmAddAllocationDialog() {
-    const selects    = editDialogBody.querySelectorAll('.alloc-custom-select');
-    const taskId     = selects[0]?.dataset.selectedValue;
-    const resourceId = selects[1]?.dataset.selectedValue;
-    const startDate  = editDialogBody.querySelector('[data-field="start"]')?.value;
-    const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
-    const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
-    if (!taskId || !resourceId || !startDate || !endDate) return;
+    const taskId            = editDialogBody.querySelector('.alloc-custom-select[data-select-type="task"]')?.dataset.selectedValue;
+    const role              = editDialogBody.querySelector('.alloc-custom-select[data-select-type="role"]')?.dataset.selectedValue;
+    const resourceIdRaw     = editDialogBody.querySelector('.alloc-custom-select[data-select-type="resource"]')?.dataset.selectedValue;
+    const resourceId        = resourceIdRaw || null;
+    const startDate         = editDialogBody.querySelector('[data-field="start"]')?.value;
+    const endDate           = editDialogBody.querySelector('[data-field="end"]')?.value;
+    const durationRaw       = editDialogBody.querySelector('[data-field="duration"]')?.value ?? '';
+    const estimatedDuration = parseDuration(durationRaw) ?? 0;
+    if (parseDuration(durationRaw) === null) { showError('Invalid duration format.'); return; }
+    const comment           = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    if (!taskId || !role || !startDate || !endDate) return;
     const dateError = validateDateRange(startDate, endDate);
     if (dateError) { showError(dateError); return; }
     const state          = State.get();
-    const newAlloc       = { id: crypto.randomUUID(), taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newAlloc       = { id: crypto.randomUUID(), taskId, role, estimatedDuration, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
     const newAllocations = [...state.allocations, newAlloc];
     const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
@@ -834,24 +872,21 @@ const SidePanel = (() => {
     const taskDot  = selTask ? `<span class="alloc-task-dot alloc-task-dot--${taskTypeCssClass(selTask.type)}"></span>` : '';
     const taskName = selTask ? Tooltip.escHtml(selTask.id + ' ' + selTask.title) : Tooltip.escHtml(alloc.taskId);
 
-    const resourceOptions = state.resources.map(r => `
-      <button class="alloc-resource-option" data-value="${Tooltip.escHtml(r.id)}"
-        data-role="${r.role.toLowerCase()}" data-name="${Tooltip.escHtml(r.name)}">
-        <span class="alloc-resource-dot alloc-resource-dot--${r.role.toLowerCase()}"></span>
-        ${Tooltip.escHtml(r.name)}</button>`).join('');
-    const selRes  = state.resources.find(r => r.id === alloc.resourceId);
-    const resDot  = selRes ? `<span class="alloc-resource-dot alloc-resource-dot--${selRes.role.toLowerCase()}"></span>` : '';
-    const resName = selRes ? Tooltip.escHtml(selRes.name) : Tooltip.escHtml(alloc.resourceId);
+    const currentRole = alloc.role ?? 'DEVELOPER';
 
     editDialogBody.innerHTML = `
       <div class="alloc-form">
         <div class="panel-field-label" style="margin-bottom:4px">Task</div>
-        ${buildCustomSelectHtml(alloc.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions)}
+        ${buildCustomSelectHtml(alloc.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions, 'task')}
+        <div class="panel-field-label" style="margin:8px 0 4px">Duration</div>
+        <input type="text" class="alloc-vac-comment-input" data-field="duration" value="${formatDuration(alloc.estimatedDuration ?? 0)}" placeholder="e.g. 1w2d" style="margin-bottom:6px">
+        <div class="panel-field-label" style="margin-bottom:4px">Role</div>
+        ${buildRoleCustomSelectHtml(currentRole, 'role')}
         <div class="panel-field-label" style="margin:8px 0 4px">Resource</div>
-        ${buildCustomSelectHtml(alloc.resourceId, resDot, resName, 'toggle-resource-dropdown', resourceOptions)}
+        ${buildResourceSelectForRoleHtml(currentRole, alloc.resourceId, state.resources)}
         <div class="alloc-date-row" style="margin-top:8px">
           <input type="date" class="alloc-date-input" data-field="start" value="${alloc.startDate}">
-          <span class="alloc-date-sep">→</span>
+          <span class="alloc-date-sep">\u2192</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${alloc.endDate}">
         </div>
         <input type="text" class="alloc-vac-comment-input" data-field="comment"
@@ -882,22 +917,23 @@ const SidePanel = (() => {
   }
 
   async function confirmEditAllocation() {
-    const orig       = _editingAllocation;
-    const selects    = editDialogBody.querySelectorAll('.alloc-custom-select');
-    const taskId     = selects[0]?.dataset.selectedValue;
-    const resourceId = selects[1]?.dataset.selectedValue;
-    const startDate  = editDialogBody.querySelector('[data-field="start"]')?.value;
-    const endDate    = editDialogBody.querySelector('[data-field="end"]')?.value;
-    const comment    = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
-    if (!taskId || !resourceId || !startDate || !endDate) return;
+    const orig              = _editingAllocation;
+    const taskId            = editDialogBody.querySelector('.alloc-custom-select[data-select-type="task"]')?.dataset.selectedValue;
+    const role              = editDialogBody.querySelector('.alloc-custom-select[data-select-type="role"]')?.dataset.selectedValue;
+    const resourceIdRaw     = editDialogBody.querySelector('.alloc-custom-select[data-select-type="resource"]')?.dataset.selectedValue;
+    const resourceId        = resourceIdRaw || null;
+    const startDate         = editDialogBody.querySelector('[data-field="start"]')?.value;
+    const endDate           = editDialogBody.querySelector('[data-field="end"]')?.value;
+    const durationRaw       = editDialogBody.querySelector('[data-field="duration"]')?.value ?? '';
+    const estimatedDuration = parseDuration(durationRaw) ?? 0;
+    if (parseDuration(durationRaw) === null) { showError('Invalid duration format.'); return; }
+    const comment           = editDialogBody.querySelector('[data-field="comment"]')?.value.trim() || undefined;
+    if (!taskId || !role || !startDate || !endDate) return;
     const dateError = validateDateRange(startDate, endDate);
     if (dateError) { showError(dateError); return; }
     const state   = State.get();
-    const updated = { id: orig.id, taskId, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
-    const newAllocations = state.allocations.map(a =>
-      (a.taskId === orig.taskId && a.resourceId === orig.resourceId &&
-       a.startDate === orig.startDate && a.endDate === orig.endDate) ? updated : a
-    );
+    const updated = { id: orig.id, taskId, role, estimatedDuration, resourceId, startDate, endDate, ...(comment ? { comment } : {}) };
+    const newAllocations = state.allocations.map(a => a.id === orig.id ? updated : a);
     const confirmBtn = document.getElementById('btn-edit-confirm');
     closeEditDialog();
     if (confirmBtn) confirmBtn.disabled = true;

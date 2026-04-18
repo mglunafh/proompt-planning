@@ -118,7 +118,22 @@ const DragDrop = (() => {
       });
       if (targetRow) {
         const idx = parseInt(targetRow.dataset.resourceIndex, 10);
-        newResourceId = state.resources[idx]?.id ?? alloc.resourceId;
+        const targetResource = state.resources[idx];
+        if (targetResource && targetResource.role === alloc.role) {
+          newResourceId = targetResource.id;
+        }
+      } else {
+        // Check unassigned rows — dropping here removes the assignee
+        const unassignedRows = Array.from(
+          document.querySelectorAll('#timeline-body .timeline-row[data-unassigned-role]')
+        );
+        const targetUnassigned = unassignedRows.find(r => {
+          const rect = r.getBoundingClientRect();
+          return centerY >= rect.top && centerY <= rect.bottom;
+        });
+        if (targetUnassigned && targetUnassigned.dataset.unassignedRole === alloc.role) {
+          newResourceId = null;
+        }
       }
     }
 

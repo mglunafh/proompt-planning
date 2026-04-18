@@ -30,7 +30,8 @@ const Tooltip = (() => {
       <strong>${escHtml(task.title)}</strong><br>
       ${task.project ? `Project: ${escHtml(task.project)}<br>` : ''}
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
-      ${alloc.startDate} → ${alloc.endDate}
+      ${alloc.estimatedDuration > 0 ? `Est. ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${alloc.startDate} \u2192 ${alloc.endDate}
     `.trim();
   }
 
@@ -45,7 +46,8 @@ const Tooltip = (() => {
       <strong>${escHtml(task.title)}</strong><br>
       ${dot}${name}<br>
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
-      ${alloc.startDate} → ${alloc.endDate}
+      ${alloc.estimatedDuration > 0 ? `Est. ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${alloc.startDate} \u2192 ${alloc.endDate}
     `.trim();
   }
 

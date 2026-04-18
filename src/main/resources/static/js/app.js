@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (selectedVacation) {
         SidePanel.promptDeleteVacation(selectedVacation.resourceId, selectedVacation.startDate, selectedVacation.endDate, selectedVacation.type);
       } else if (selectedAlloc) {
-        SidePanel.promptDeleteAllocation(selectedAlloc.taskId, selectedAlloc.resourceId, selectedAlloc.startDate, selectedAlloc.endDate);
+        SidePanel.promptDeleteAllocation(selectedAlloc.id);
       } else if (selectedSegmentId) {
         SidePanel.promptDeleteWorkSegment(selectedSegmentId);
       }

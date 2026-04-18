@@ -327,13 +327,65 @@ const Timeline = (() => {
           const task  = taskById.get(alloc.taskId);
           if (!task) continue;
           const allocIndex = allocIndexMap.get(alloc);
-          content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, null, lane));
+          content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, null, lane, state.vacations));
         }
       }
 
       row.appendChild(label);
       row.appendChild(content);
       frag.appendChild(row);
+    }
+
+    // Unassigned allocations section
+    const unassignedAllocs = state.allocations.filter(a => a.resourceId == null);
+    if (unassignedAllocs.length > 0) {
+      const separator = document.createElement('div');
+      separator.className = 'timeline-unassigned-separator';
+      frag.appendChild(separator);
+
+      const byRole = new Map();
+      for (const alloc of unassignedAllocs) {
+        if (!byRole.has(alloc.role)) byRole.set(alloc.role, []);
+        byRole.get(alloc.role).push(alloc);
+      }
+
+      for (const [role, roleAllocs] of byRole) {
+        const row = createRow();
+        row.dataset.unassignedRole = role;
+        const label = createLabel();
+        label.classList.add('row-label--unassigned');
+
+        const badge = document.createElement('span');
+        badge.className = 'role-badge role-badge--' + role.toLowerCase();
+        badge.textContent = (ROLE_LABELS[role] ?? role).charAt(0).toUpperCase();
+        label.appendChild(badge);
+
+        const text = document.createElement('span');
+        text.className = 'row-label-text row-label-text--muted';
+        text.textContent = (ROLE_LABELS[role] ?? role) + ' \u2014 unassigned';
+        label.appendChild(text);
+
+        const content = document.createElement('div');
+        content.className = 'row-content';
+        content.style.width = contentWidth(range, state.zoom) + 'px';
+        if (state.zoom === 'day') { addWeekendStripes(content, range, holidaySet); addHolidayStripes(content, range, holidaySet); }
+        else addWeekBorders(content, range);
+
+        const allocLaned = assignLanes(roleAllocs, 'startDate', 'endDate');
+        const laneCount = allocLaned.length > 0 ? Math.max(...allocLaned.map(x => x.lane)) + 1 : 1;
+        if (laneCount > 1) row.style.height = (ROW_HEIGHT * laneCount) + 'px';
+
+        for (const { item: alloc, lane } of allocLaned) {
+          const task = taskById.get(alloc.taskId);
+          if (!task) continue;
+          const allocIndex = allocIndexMap.get(alloc);
+          content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, null, lane, state.vacations));
+        }
+
+        row.appendChild(label);
+        row.appendChild(content);
+        frag.appendChild(row);
+      }
     }
 
     // Add resource button row
@@ -529,7 +581,7 @@ const Timeline = (() => {
     for (const { item: alloc, lane } of allocLaned) {
       const allocIndex = allocIndexMap.get(alloc);
       const resource   = resourceById.get(alloc.resourceId);
-      content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, resource, lane));
+      content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, resource, lane, state.vacations));
     }
 
     row.appendChild(label);
@@ -689,17 +741,27 @@ const Timeline = (() => {
   }
 
   // ── Block factories ──────────────────────
-  function createTaskBlock(task, alloc, allocIndex, zoom, range, resource = null, lane = 0) {
+  function createTaskBlock(task, alloc, allocIndex, zoom, range, resource = null, lane = 0, vacations = []) {
     const block = document.createElement('div');
     const colorClass = resource
       ? 'block--resource-' + resource.role.toLowerCase()
       : 'block--' + taskTypeCssClass(task.type);
     block.className = 'block ' + colorClass;
     block.setAttribute('data-task-id', task.id);
-    block.setAttribute('data-resource-id', alloc.resourceId);
+    block.setAttribute('data-resource-id', alloc.resourceId ?? '');
     block.setAttribute('data-alloc-index', allocIndex);
     block.setAttribute('data-alloc-id', alloc.id ?? '');
     block.setAttribute('data-draggable', 'true');
+
+    if (alloc.resourceId == null) {
+      block.classList.add('block--unassigned');
+    } else {
+      const hasViolation = vacations.some(v =>
+        v.resourceId === alloc.resourceId &&
+        v.startDate <= alloc.endDate && v.endDate >= alloc.startDate
+      );
+      if (hasViolation) block.classList.add('block--violation');
+    }
 
     const handleLeft = document.createElement('div');
     handleLeft.className = 'resize-handle resize-handle--left';

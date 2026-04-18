@@ -379,6 +379,34 @@ body {
   text-shadow: 0 0 3px #cbd5e1, 0 0 3px #cbd5e1;
 }
 
+/* ── Unassigned section separator ──────────── */
+.timeline-unassigned-separator {
+  height: 0;
+  border-top: 3px solid #cbd5e1;
+  margin: 2px 0;
+}
+
+/* ── Unassigned allocation blocks ──────────── */
+.block--unassigned {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+/* ── Constraint violation (vacation overlap) ── */
+.block--violation {
+  position: relative;
+}
+.block--violation::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
 /* ── Work segment blocks ─────────────────── */
 .block--segment {
   border-radius: 4px;
