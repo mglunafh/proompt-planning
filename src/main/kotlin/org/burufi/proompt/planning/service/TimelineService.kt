@@ -17,7 +17,7 @@ class TimelineService {
         }
 
         val referencedTaskIds = filteredAllocations.map { it.taskId }.toSet()
-        val referencedResourceIds = filteredAllocations.map { it.resourceId }.toSet()
+        val referencedResourceIds = filteredAllocations.mapNotNull { it.resourceId }.toSet()
 
         val filteredTasks = snapshot.tasks.filter { it.id in referencedTaskIds }
         val filteredResources = snapshot.resources.filter { it.id in referencedResourceIds }

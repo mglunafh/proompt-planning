@@ -27,31 +27,33 @@ class ImportController(
     @PostMapping("/csv", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun importCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
         val response = csvImportService.import(file)
+        val allocations = jsonImportService.normalizeAllocations(response.allocations, response.resources)
         val snapshot = Snapshot(
             version = "1.0",
             generatedAt = Instant.now(),
             tasks = response.tasks,
             resources = response.resources,
-            allocations = response.allocations,
+            allocations = allocations,
         )
         planStateHolder.update(snapshot, file.originalFilename ?: "import.csv")
-        return ResponseEntity.ok(response)
+        return ResponseEntity.ok(response.copy(allocations = allocations))
     }
 
     @PostMapping("/csv/merge", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun mergeCsv(@RequestParam("file") file: MultipartFile): ResponseEntity<ImportCsvResponse> {
         val existing = planStateHolder.snapshot
         val response = csvImportService.merge(file, existing)
+        val allocations = jsonImportService.normalizeAllocations(response.allocations, response.resources)
         val merged = Snapshot(
             version = "1.0",
             generatedAt = Instant.now(),
             tasks = response.tasks,
             resources = response.resources,
-            allocations = response.allocations,
+            allocations = allocations,
             vacations = existing?.vacations ?: emptyList(),
         )
         planStateHolder.update(merged, file.originalFilename ?: "merge.csv")
-        return ResponseEntity.ok(response)
+        return ResponseEntity.ok(response.copy(allocations = allocations))
     }
 
     @PostMapping("/plan", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])

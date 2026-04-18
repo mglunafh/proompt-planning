@@ -40,7 +40,7 @@ class ValidationService {
 
         // Allocation reference integrity + date ordering
         snapshot.allocations.forEachIndexed { i, alloc ->
-            issues += validateAllocation(alloc, i, taskIds, resourceIds)
+            issues += validateAllocation(alloc, i, taskIds, resourceIds, snapshot)
         }
 
         // Vacation reference integrity + date ordering
@@ -64,13 +64,24 @@ class ValidationService {
         index: Int,
         taskIds: Set<String>,
         resourceIds: Set<String>,
+        snapshot: Snapshot,
     ): List<ValidationIssue> {
         val issues = mutableListOf<ValidationIssue>()
         if (alloc.taskId !in taskIds) {
             issues += error("Allocation references unknown taskId: ${alloc.taskId}", "allocations[$index].taskId")
         }
-        if (alloc.resourceId !in resourceIds) {
-            issues += error("Allocation references unknown resourceId: ${alloc.resourceId}", "allocations[$index].resourceId")
+        if (alloc.resourceId != null) {
+            if (alloc.resourceId !in resourceIds) {
+                issues += error("Allocation references unknown resourceId: ${alloc.resourceId}", "allocations[$index].resourceId")
+            } else {
+                val resource = snapshot.resources.find { it.id == alloc.resourceId }
+                if (resource != null && resource.role != alloc.role) {
+                    issues += error(
+                        "Allocation role ${alloc.role} does not match resource role ${resource.role}",
+                        "allocations[$index].role",
+                    )
+                }
+            }
         }
         if (alloc.startDate > alloc.endDate) {
             issues += error("Allocation startDate is after endDate", "allocations[$index]")
