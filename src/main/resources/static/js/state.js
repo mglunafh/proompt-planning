@@ -10,6 +10,8 @@ const State = (() => {
     holidays: [],
     viewMode: 'resource',
     zoom: 'day',
+    plans: [],
+    activePlanId: null,
   };
 
   const listeners = [];

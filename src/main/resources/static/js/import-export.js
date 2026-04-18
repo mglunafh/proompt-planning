@@ -8,13 +8,18 @@
     e.target.value = '';
     try {
       const result = await API.importCsv(file);
+      const allocations = ensureAllocIds(result.allocations);
+      const newPlan = { id: crypto.randomUUID(), name: 'Plan 1', allocations };
       State.set({
         tasks: result.tasks,
         resources: result.resources,
-        allocations: ensureAllocIds(result.allocations),
+        allocations,
         vacations: [],
         workSegments: [],
+        plans: [newPlan],
+        activePlanId: newPlan.id,
       });
+      Plans.render();
       if (result.warnings.length > 0) showWarnings(result.warnings);
     } catch (err) {
       showError('CSV import failed: ' + err.message);
@@ -28,9 +33,8 @@
     try {
       const result = await API.mergeCsv(file);
       State.set({
-        tasks:       result.tasks,
-        resources:   result.resources,
-        allocations: ensureAllocIds(result.allocations),
+        tasks:     result.tasks,
+        resources: result.resources,
       });
       if (result.warnings.length > 0) showWarnings(result.warnings);
     } catch (err) {
@@ -52,10 +56,13 @@
       State.set({
         tasks: normalized.tasks,
         resources: normalized.resources,
-        allocations: ensureAllocIds(normalized.allocations),
+        allocations: ensureAllocIds(normalized.plans?.find(p => p.id === normalized.activePlanId)?.allocations ?? []),
         vacations: normalized.vacations,
         workSegments: normalized.workSegments ?? [],
+        plans: normalized.plans ?? [],
+        activePlanId: normalized.activePlanId ?? null,
       });
+      Plans.render();
     } catch (err) {
       showError('JSON import failed: ' + err.message);
     }
@@ -80,9 +87,11 @@
       generatedAt: new Date().toISOString(),
       tasks: state.tasks,
       resources: state.resources,
-      allocations: state.allocations,
+      allocations: [],
       vacations: state.vacations,
       workSegments: state.workSegments ?? [],
+      plans: state.plans,
+      activePlanId: state.activePlanId,
     };
     try {
       const exported = await API.exportSnapshot(snapshot, fileHandle.name);
@@ -106,13 +115,5 @@
       banner.classList.add('hidden');
       banner.style.cssText = '';
     }, 5000);
-  }
-
-  function showError(msg) {
-    const banner = document.getElementById('error-banner');
-    banner.style.cssText = '';
-    banner.textContent = msg;
-    banner.classList.remove('hidden');
-    setTimeout(() => banner.classList.add('hidden'), 5000);
   }
 })();

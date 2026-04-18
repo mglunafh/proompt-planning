@@ -580,7 +580,8 @@ const Timeline = (() => {
 
     for (const { item: alloc, lane } of allocLaned) {
       const allocIndex = allocIndexMap.get(alloc);
-      const resource   = resourceById.get(alloc.resourceId);
+      // Task view: unassigned allocs use role color; assigned but resource-not-found falls back to task type color
+      const resource = resourceById.get(alloc.resourceId) ?? (alloc.resourceId == null ? { role: alloc.role } : null);
       content.appendChild(createTaskBlock(task, alloc, allocIndex, state.zoom, range, resource, lane, state.vacations));
     }
 
@@ -768,7 +769,7 @@ const Timeline = (() => {
 
     const title = document.createElement('span');
     title.className = 'block-title';
-    const base = resource ? resource.name : task.id;
+    const base = resource?.name ?? task.id;
     title.textContent = alloc.comment ? `${base} (${alloc.comment})` : base;
 
     const handleRight = document.createElement('div');

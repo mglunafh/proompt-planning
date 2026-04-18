@@ -35,7 +35,7 @@ body {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 0 16px;
-  height: 60px;
+  height: 52px;
   background: #1e293b;
   color: #f8fafc;
   flex-shrink: 0;
@@ -393,9 +393,6 @@ body {
 }
 
 /* ── Constraint violation (vacation overlap) ── */
-.block--violation {
-  position: relative;
-}
 .block--violation::after {
   content: '';
   position: absolute;
@@ -881,6 +878,114 @@ body {
 .btn-modal--danger:hover { background: #dc2626; }
 .btn-modal--save { background: #22c55e; color: #fff; border: none; }
 .btn-modal--save:hover { background: #16a34a; }
+
+/* ── Plan strip ──────────────────────────── */
+#plan-strip {
+  background: #1e293b;
+  padding: 8px 16px 0;
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+#plan-bar {
+  display: flex;
+  align-items: flex-end;
+}
+
+.plan-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.plan-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  white-space: nowrap;
+  max-width: 200px;
+  position: relative;
+  bottom: -1px;
+}
+.plan-tab:hover { background: rgba(255,255,255,0.07); color: #94a3b8; }
+.plan-tab--active { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; font-weight: 500; }
+.plan-tab--active:hover { background: #f8fafc; }
+
+.plan-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-tab-menu {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.plan-tab-menu:hover { opacity: 1; }
+.plan-tab--active .plan-tab-menu { opacity: 0.45; }
+
+.plan-add-btn {
+  padding: 5px 12px;
+  border-radius: 6px 6px 0 0;
+  border: 1px dashed #475569;
+  border-bottom: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  white-space: nowrap;
+  position: relative;
+  bottom: -1px;
+}
+.plan-add-btn:hover { color: #94a3b8; border-color: #64748b; background: rgba(255,255,255,0.05); }
+
+.plan-menu {
+  position: fixed;
+  z-index: 400;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 120px;
+}
+
+.plan-menu button {
+  padding: 8px 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1e293b;
+}
+.plan-menu button:hover { background: #f1f5f9; }
+
+.plan-menu-item--danger { color: #ef4444 !important; }
+.plan-menu-item--danger:hover { background: #fee2e2 !important; }
 
 /* ── Empty state ─────────────────────────── */
 .empty-state {

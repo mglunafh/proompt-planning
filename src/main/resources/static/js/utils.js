@@ -58,14 +58,29 @@ function validateDateRange(startDate, endDate) {
   return null;
 }
 
+function showError(msg) {
+  const banner = document.getElementById('error-banner');
+  banner.style.cssText = '';
+  banner.textContent = msg;
+  banner.classList.remove('hidden');
+  setTimeout(() => banner.classList.add('hidden'), 5000);
+}
+
 // Optimistically updates state, saves to backend, rolls back + shows error on failure.
 async function savePlanSafely(partialState) {
   const prev = State.get();
-  State.set(partialState);
+  const pending = { ...prev, ...partialState };
+  // Keep active plan's allocations in sync with state.allocations
+  if (pending.activePlanId && pending.plans?.length > 0) {
+    pending.plans = pending.plans.map(p =>
+      p.id === pending.activePlanId ? { ...p, allocations: pending.allocations } : p
+    );
+  }
+  State.set(pending);
   const s = State.get();
   SidePanel.showSaving();
   try {
-    await API.savePlan(s.allocations, s.vacations, s.workSegments);
+    await API.savePlan(s.vacations, s.workSegments, s.plans, s.activePlanId);
   } catch (err) {
     State.set(prev);
     SidePanel.showError('Failed to save: ' + err.message);
