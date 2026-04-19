@@ -51,6 +51,31 @@ function parseDuration(str) {
   return (m[1] ? parseInt(m[1], 10) : 0) * 5 + (m[2] ? parseInt(m[2], 10) : 0);
 }
 
+// Computes the real number of working days for an allocation.
+// Counts Mon-Fri days in [startDate, endDate] (inclusive), excluding
+// holidays and — when a resource is assigned — their overlapping vacation days.
+function computeDuration(alloc, vacations, holidays) {
+  const holidaySet = new Set(holidays);
+  const vacDays = new Set();
+  if (alloc.resourceId) {
+    for (const v of vacations.filter(v => v.resourceId === alloc.resourceId)) {
+      let d = parseDate(v.startDate);
+      const end = parseDate(v.endDate);
+      while (d <= end) { vacDays.add(formatDate(d)); d.setDate(d.getDate() + 1); }
+    }
+  }
+  let count = 0;
+  let d = parseDate(alloc.startDate);
+  const end = parseDate(alloc.endDate);
+  while (d <= end) {
+    const dow = d.getDay();
+    const ds  = formatDate(d);
+    if (dow !== 0 && dow !== 6 && !holidaySet.has(ds) && !vacDays.has(ds)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 // Returns an error message string if startDate/endDate are invalid, otherwise null.
 function validateDateRange(startDate, endDate) {
   if (!startDate || !endDate) return 'Start and end dates are required.';

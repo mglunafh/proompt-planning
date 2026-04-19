@@ -25,12 +25,15 @@ const Tooltip = (() => {
   });
 
   function buildResourceView(task, alloc) {
+    const s   = State.get();
+    const dur = computeDuration(alloc, s.vacations, s.holidays);
     return `
       <span style="color:#94a3b8;font-size:11px">${escHtml(task.id)}</span><br>
       <strong>${escHtml(task.title)}</strong><br>
       ${task.project ? `Project: ${escHtml(task.project)}<br>` : ''}
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
-      ${alloc.estimatedDuration > 0 ? `Est. ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${alloc.estimatedDuration > 0 ? `Estimate: ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${dur > 0 ? `Duration: ${formatDuration(dur)}<br>` : ''}
       ${alloc.startDate} \u2192 ${alloc.endDate}
     `.trim();
   }
@@ -41,12 +44,15 @@ const Tooltip = (() => {
       : 'alloc-resource-dot';
     const dot = `<span class="${dotClass}" style="width:8px;height:8px;margin-right:5px;vertical-align:middle"></span>`;
     const name = resource ? escHtml(resource.name) : '—';
+    const s   = State.get();
+    const dur = computeDuration(alloc, s.vacations, s.holidays);
     return `
       <span style="color:#94a3b8;font-size:11px">${escHtml(task.id)}</span><br>
       <strong>${escHtml(task.title)}</strong><br>
       ${dot}${name}<br>
       ${alloc.comment ? `${escHtml(alloc.comment)}<br>` : ''}
-      ${alloc.estimatedDuration > 0 ? `Est. ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${alloc.estimatedDuration > 0 ? `Estimate: ${formatDuration(alloc.estimatedDuration)}<br>` : ''}
+      ${dur > 0 ? `Duration: ${formatDuration(dur)}<br>` : ''}
       ${alloc.startDate} \u2192 ${alloc.endDate}
     `.trim();
   }

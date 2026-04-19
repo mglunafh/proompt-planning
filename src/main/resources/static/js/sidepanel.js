@@ -39,6 +39,9 @@ const SidePanel = (() => {
       if (option.classList.contains('alloc-role-option') && (_editingAllocation || _addingAllocation)) {
         refreshAllocResourceDropdown(editDialogBody, option.dataset.value);
       }
+      if (option.classList.contains('alloc-resource-option')) {
+        refreshComputedDuration();
+      }
     }
   });
 
@@ -431,7 +434,7 @@ const SidePanel = (() => {
       <div class="panel-field alloc-form">
         <div class="panel-field-label">New Allocation</div>
         ${selectHtml}
-        <input type="text" class="alloc-vac-comment-input" data-field="duration" value="" placeholder="Duration (e.g. 1w2d)" style="margin-top:6px">
+        <input type="text" class="alloc-vac-comment-input" data-field="duration" value="" placeholder="Estimate (e.g. 1w2d)" style="margin-top:6px">
         <div class="alloc-date-row">
           <input type="date" class="alloc-date-input" data-field="start" value="${startDate}">
           <span class="alloc-date-sep">\u2192</span>
@@ -540,6 +543,17 @@ const SidePanel = (() => {
     await savePlanSafely({ allocations: newAllocations });
   }
 
+  function refreshComputedDuration() {
+    const start      = editDialogBody.querySelector('[data-field="start"]')?.value;
+    const end        = editDialogBody.querySelector('[data-field="end"]')?.value;
+    const resourceId = editDialogBody.querySelector('.alloc-custom-select[data-select-type="resource"]')?.dataset.selectedValue || null;
+    const el         = editDialogBody.querySelector('[data-field="computed-duration"]');
+    if (!el || !start || !end) return;
+    const s   = State.get();
+    const dur = computeDuration({ startDate: start, endDate: end, resourceId }, s.vacations, s.holidays);
+    el.textContent = dur > 0 ? formatDuration(dur) : '—';
+  }
+
   // ── Add allocation dialog ────────────────
   function openAddAllocationDialog({ resourceId = null, taskId = null } = {}, startDate) {
     _editingAllocation = _editingVacation = null;
@@ -560,11 +574,14 @@ const SidePanel = (() => {
     const selRes      = resourceId ? state.resources.find(r => r.id === resourceId) : null;
     const initialRole = selRes?.role ?? (ROLES[0] ?? 'DEVELOPER');
 
+    const computedDur     = computeDuration({ startDate, endDate, resourceId }, state.vacations, state.holidays);
+    const computedDurText = computedDur > 0 ? formatDuration(computedDur) : '—';
+
     editDialogBody.innerHTML = `
       <div class="alloc-form">
         <div class="panel-field-label" style="margin-bottom:4px">Task</div>
         ${buildCustomSelectHtml(selTask?.id ?? '', taskDot, taskLabel, 'toggle-task-dropdown', taskOptions, 'task')}
-        <div class="panel-field-label" style="margin:8px 0 4px">Duration</div>
+        <div class="panel-field-label" style="margin:8px 0 4px">Estimate</div>
         <input type="text" class="alloc-vac-comment-input" data-field="duration" value="" placeholder="e.g. 1w2d" style="margin-bottom:6px">
         <div class="panel-field-label" style="margin-bottom:4px">Role</div>
         ${buildRoleCustomSelectHtml(initialRole, 'role')}
@@ -575,8 +592,12 @@ const SidePanel = (() => {
           <span class="alloc-date-sep">\u2192</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${endDate}">
         </div>
+        <div class="panel-field-label" style="margin:8px 0 2px">Duration (working days)</div>
+        <div data-field="computed-duration" style="font-size:13px;color:#cbd5e1;margin-bottom:6px">${computedDurText}</div>
         <input type="text" class="alloc-vac-comment-input" data-field="comment" placeholder="Comment (optional)">
       </div>`;
+    editDialogBody.querySelectorAll('[data-field="start"], [data-field="end"]')
+      .forEach(inp => inp.addEventListener('input', refreshComputedDuration));
     editDialog.classList.remove('hidden');
   }
 
@@ -625,11 +646,14 @@ const SidePanel = (() => {
 
     const currentRole = alloc.role ?? 'DEVELOPER';
 
+    const computedDur     = computeDuration(alloc, state.vacations, state.holidays);
+    const computedDurText = computedDur > 0 ? formatDuration(computedDur) : '—';
+
     editDialogBody.innerHTML = `
       <div class="alloc-form">
         <div class="panel-field-label" style="margin-bottom:4px">Task</div>
         ${buildCustomSelectHtml(alloc.taskId, taskDot, taskName, 'toggle-task-dropdown', taskOptions, 'task')}
-        <div class="panel-field-label" style="margin:8px 0 4px">Duration</div>
+        <div class="panel-field-label" style="margin:8px 0 4px">Estimate</div>
         <input type="text" class="alloc-vac-comment-input" data-field="duration" value="${formatDuration(alloc.estimatedDuration ?? 0)}" placeholder="e.g. 1w2d" style="margin-bottom:6px">
         <div class="panel-field-label" style="margin-bottom:4px">Role</div>
         ${buildRoleCustomSelectHtml(currentRole, 'role')}
@@ -640,9 +664,13 @@ const SidePanel = (() => {
           <span class="alloc-date-sep">\u2192</span>
           <input type="date" class="alloc-date-input" data-field="end" value="${alloc.endDate}">
         </div>
+        <div class="panel-field-label" style="margin:8px 0 2px">Duration (working days)</div>
+        <div data-field="computed-duration" style="font-size:13px;color:#cbd5e1;margin-bottom:6px">${computedDurText}</div>
         <input type="text" class="alloc-vac-comment-input" data-field="comment"
           placeholder="Comment (optional)" value="${Tooltip.escHtml(alloc.comment ?? '')}">
       </div>`;
+    editDialogBody.querySelectorAll('[data-field="start"], [data-field="end"]')
+      .forEach(inp => inp.addEventListener('input', refreshComputedDuration));
     editDialog.classList.remove('hidden');
   }
 
