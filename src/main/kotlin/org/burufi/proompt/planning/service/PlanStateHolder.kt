@@ -12,11 +12,13 @@ class PlanStateHolder {
     @Volatile var sourceFilename: String? = null
         internal set
 
+    @Synchronized
     fun update(snapshot: Snapshot, filename: String) {
         this.snapshot = snapshot
         this.sourceFilename = filename
     }
 
+    @Synchronized
     fun reset() {
         snapshot = null
         sourceFilename = null

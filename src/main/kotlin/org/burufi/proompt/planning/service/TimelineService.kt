@@ -12,7 +12,11 @@ class TimelineService {
         val from = request.from
         val to = request.to
 
-        val filteredAllocations = snapshot.allocations.filter { alloc ->
+        val activePlan = snapshot.plans.find { it.id == snapshot.activePlanId }
+        val allAllocations = activePlan?.allocations
+            ?: snapshot.plans.firstOrNull()?.allocations
+            ?: @Suppress("DEPRECATION") snapshot.allocations  // legacy snapshots sent without migration
+        val filteredAllocations = allAllocations.filter { alloc ->
             alloc.startDate <= to && alloc.endDate >= from
         }
 
